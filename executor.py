@@ -9,6 +9,10 @@ def execute(task: Task):
 
     elif task.intent == "exit":
         print("Goodbye! 👋")
+        
+    elif task.intent == "cancelled":
+        print("👍 Okay, I won't do that.")
+    
     else:
 
         skill = get_skill(task.intent)

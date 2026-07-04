@@ -48,7 +48,34 @@ def handle_pending_response(pending, user_input):
 
     response = user_input.lower().strip()
 
-    if response in {"cancel", "stop", "nevermind", "never mind"}:
+    cancel_words = {
+        "cancel",
+        "stop",
+        "nevermind",
+        "never mind"
+    }
+
+    yes_words = {
+        "yes",
+        "y",
+        "yeah",
+        "yep",
+        "yup",
+        "sure",
+        "okay",
+        "ok",
+        "correct",
+        "do it"
+    }
+
+    no_words = {
+        "no",
+        "n",
+        "nope",
+        "nah"
+    }
+
+    if response in cancel_words:
         print("👍 Okay, operation cancelled.")
         return None
 
@@ -56,11 +83,11 @@ def handle_pending_response(pending, user_input):
 
     if status == "confirmation_required":
 
-        if response in {"yes", "y", "yeah", "yep"}:
+        if response in yes_words:
             launch_application(pending["match"])
             return None
 
-        if response in {"no", "n", "nope"}:
+        if response in no_words:
             print("👍 Okay, cancelled.")
             return None
 
@@ -88,6 +115,7 @@ def handle_pending_response(pending, user_input):
             f"🤖 Choose a number from 1 to {cancel_number}, "
             f"or type 'cancel'."
         )
+
         return pending
 
     return None

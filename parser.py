@@ -55,9 +55,35 @@ def find_target(words):
 
     return " ".join(target_words)
 
+def has_negation(words):
+
+    joined_command = " ".join(words)
+
+    negation_phrases = {
+        "don't",
+        "dont",
+        "do not",
+        "can't",
+        "cant",
+        "cannot",
+        "never"
+    }
+
+    return any(
+        phrase in joined_command
+        for phrase in negation_phrases
+    )
 def parse(words):
 
+    action = find_action(words)
+
+    if action and has_negation(words):
+        return {
+            "action": "cancelled",
+            "target": None
+        }
+
     return {
-        "action": find_action(words),
+        "action": action,
         "target": find_target(words)
     }
