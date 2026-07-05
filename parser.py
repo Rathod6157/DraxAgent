@@ -4,8 +4,23 @@ ACTION_WORDS = {
         "launch",
         "run",
         "start"
+    },
+
+    "timer": {
+        "timer",
+        "timers",
+        "alert",
+        "remind"
     }
 }
+
+
+TIMER_WORDS = {
+    "timer",
+    "alert",
+    "remind"
+}
+
 
 NEGATION_WORDS = {
     "not",
@@ -14,16 +29,33 @@ NEGATION_WORDS = {
     "never"
 }
 
+
 def find_action(words):
 
-    for action, triggers in ACTION_WORDS.items():
+    # Timer management commands
+    if (
+        ("cancel" in words or "stop" in words)
+        and ("timer" in words or "timers" in words)
+    ):
+        return "timer"
 
-        for word in words:
+    if (
+        ("list" in words or "show" in words)
+        and ("timer" in words or "timers" in words)
+    ):
+        return "timer"
 
-            if word in triggers:
-                return action
+    # Normal timer commands
+    if any(word in TIMER_WORDS for word in words):
+        return "timer"
+
+    # Application-opening commands
+    for word in words:
+        if word in ACTION_WORDS["open"]:
+            return "open"
 
     return None
+
 
 def find_target(words):
 
@@ -32,7 +64,17 @@ def find_target(words):
     if action is None:
         return None
 
-    triggers = ACTION_WORDS[action]
+
+    # Timer skill receives the entire command.
+    # Duration parsing belongs inside timer.py.
+
+    if action == "timer":
+        return " ".join(words)
+
+
+    # Open Application target extraction.
+
+    triggers = ACTION_WORDS["open"]
 
     target_words = []
     collecting = False
@@ -55,6 +97,7 @@ def find_target(words):
 
     return " ".join(target_words)
 
+
 def has_negation(words):
 
     joined_command = " ".join(words)
@@ -73,6 +116,8 @@ def has_negation(words):
         phrase in joined_command
         for phrase in negation_phrases
     )
+
+
 def parse(words):
 
     action = find_action(words)

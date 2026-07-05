@@ -1,5 +1,5 @@
 import subprocess
-
+from terminal import safe_print
 from resolver import decide_application
 
 
@@ -36,7 +36,7 @@ def launch_application(match):
             print(f"❌ Unknown application source: '{source}'.")
             return False
 
-        print(f"🚀 Opening {app_name}...")
+        safe_print(f"🚀 Opening {app_name}...")
         return True
 
     except Exception as error:
