@@ -14,7 +14,18 @@ AUTHOR = "Harshith"
 ACTIVE_TIMERS = {}
 TIMER_COUNTER = 0
 TIMER_LOCK = threading.Lock()
+TIMER_LABEL_WORDS = {"called", "named", "as", "titled", "labelled", "labelled as"}
+def extract_timer_name(text):
+    words = text.lower().split()
 
+    for index, word in enumerate(words):
+        if word in TIMER_LABEL_WORDS:
+            name_words = words[index + 1:]
+
+            if name_words:
+                return " ".join(name_words)
+
+    return None
 
 def parse_duration(text):
     patterns = {
@@ -36,18 +47,21 @@ def parse_duration(text):
     return None, None
 
 
-def finish_timer(timer_id, label):
+def finish_timer(timer_id, duration_label):
     with TIMER_LOCK:
         timer_data = ACTIVE_TIMERS.pop(timer_id, None)
 
-    # Timer may already have been cancelled.
     if timer_data is None:
         return
 
-    safe_print(f"\n⏰ Timer #{timer_id} finished: {label}")
+    timer_name = timer_data.get("name")
 
+    if timer_name:
+        safe_print(f"\n⏰ Your '{timer_name}' timer is finished!")
+    else:
+        safe_print(f"\n⏰ Timer #{timer_id} finished after {duration_label}.")
 
-def start_timer(seconds, label):
+def start_timer(seconds, duration_label, timer_name=None):
     global TIMER_COUNTER
 
     with TIMER_LOCK:
@@ -57,18 +71,27 @@ def start_timer(seconds, label):
         timer = threading.Timer(
             seconds,
             finish_timer,
-            args=(timer_id, label)
+            args=(timer_id, duration_label)
         )
 
         ACTIVE_TIMERS[timer_id] = {
             "timer": timer,
-            "label": label,
+            "duration_label": duration_label,
+            "name": timer_name,
             "seconds": seconds
         }
 
         timer.start()
 
-    safe_print(f"⏱️ Timer #{timer_id} started for {label}.")
+    if timer_name:
+        safe_print(
+            f"⏱️ Timer #{timer_id} '{timer_name}' started for "
+            f"{duration_label}."
+        )
+    else:
+        safe_print(
+            f"⏱️ Timer #{timer_id} started for {duration_label}."
+        )
 
 
 def list_timers():
@@ -82,9 +105,17 @@ def list_timers():
     safe_print("⏱️ Active timers:")
 
     for timer_id, timer_data in timers:
-        safe_print(
-            f"{timer_id}. {timer_data['label']}"
-        )
+        timer_name = timer_data["name"]
+        duration_label = timer_data["duration_label"]
+
+        if timer_name:
+            safe_print(
+                f"{timer_id}. {timer_name} — {duration_label}"
+            )
+        else:
+            safe_print(
+                f"{timer_id}. {duration_label}"
+            )
 
 
 def cancel_timer(timer_id):
@@ -97,8 +128,42 @@ def cancel_timer(timer_id):
 
     timer_data["timer"].cancel()
 
-    safe_print(f"👍 Timer #{timer_id} cancelled.")
+    timer_name = timer_data.get("name")
 
+    if timer_name:
+        safe_print(f"👍 Cancelled the '{timer_name}' timer.")
+    else:
+        safe_print(f"👍 Timer #{timer_id} cancelled.")
+    
+def cancel_timer_by_name(timer_name):
+    timer_name = timer_name.lower().strip()
+
+    with TIMER_LOCK:
+        matches = [
+            (timer_id, timer_data)
+            for timer_id, timer_data in ACTIVE_TIMERS.items()
+            if timer_data.get("name")
+            and timer_data["name"].lower() == timer_name
+        ]
+
+    if not matches:
+        safe_print(f"❌ I couldn't find an active timer named '{timer_name}'.")
+        return
+
+    if len(matches) > 1:
+        safe_print(f"🤔 I found multiple timers named '{timer_name}':")
+
+        for timer_id, timer_data in matches:
+            safe_print(
+                f"{timer_id}. {timer_data['name']} — "
+                f"{timer_data['duration_label']}"
+            )
+
+        safe_print("💡 Cancel one using its timer number.")
+        return
+
+    timer_id, _ = matches[0]
+    cancel_timer(timer_id)
 
 def cancel_all_timers():
     with TIMER_LOCK:
@@ -145,12 +210,39 @@ def execute(task):
         timer_id = int(cancel_match.group(1))
         cancel_timer(timer_id)
         return
+    # CANCEL TIMER BY NAME
+    cancel_name_match = re.search(
+        r"(?:cancel|stop)\s+(?:my\s+)?timer\s+(.+)$",
+        text
+    )
+
+    if cancel_name_match:
+        timer_name = cancel_name_match.group(1).strip()
+        cancel_timer_by_name(timer_name)
+        return
+
+
+    cancel_natural_match = re.search(
+        r"(?:cancel|stop)\s+(?:my\s+)?(.+?)\s+timer$",
+        text
+    )
+
+    if cancel_natural_match:
+        timer_name = cancel_natural_match.group(1).strip()
+        cancel_timer_by_name(timer_name)
+        return
 
     # START TIMER
-    seconds, label = parse_duration(text)
+    seconds, duration_label = parse_duration(text)
 
     if seconds is None:
         safe_print("❌ I couldn't understand the timer duration.")
         return
 
-    start_timer(seconds, label)
+    timer_name = extract_timer_name(text)
+
+    start_timer(
+        seconds,
+        duration_label,
+        timer_name
+    )

@@ -37,3 +37,25 @@ def get_skill(intent):
 
 def get_all_skills():
     return SKILLS.values()
+
+def show_loaded_capabilities():
+    if not SKILLS:
+        print("🤖 No capabilities loaded.")
+        return
+
+    print("\n🤖 What I can do:")
+
+    for skill in SKILLS.values():
+        name = getattr(skill, "NAME", "Unknown Skill")
+        description = getattr(skill, "DESCRIPTION", "No description available.")
+
+        print(f"   • {name}: {description}")
+
+    print("\n💡 Try commands like:")
+    print("   • open chrome")
+    print("   • close calculator")
+    print("   • set a timer for 10 seconds")
+    print("   • set a timer for 1 minute called study")
+    print("   • list timers")
+    print("   • cancel timer 1")
+    print("   • exit")

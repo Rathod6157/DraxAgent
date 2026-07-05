@@ -1,6 +1,6 @@
 from core import understand
 from executor import execute
-from skills.skill_loader import load_skills
+from skills.skill_loader import load_skills, show_loaded_capabilities
 from skills.open_app import handle_pending_response
 from resolver import get_cached_applications
 from terminal import terminal_session
@@ -12,6 +12,8 @@ print("🤖 Welcome to DraxAgent v0.1")
 print("=" * 35)
 
 load_skills()
+
+show_loaded_capabilities()
 
 get_cached_applications()
 
