@@ -11,6 +11,11 @@ ACTION_WORDS = {
         "timers",
         "alert",
         "remind"
+    },
+    "close": {
+        "close",
+        "quit",
+        "terminate"
     }
 }
 
@@ -49,10 +54,13 @@ def find_action(words):
     if any(word in TIMER_WORDS for word in words):
         return "timer"
 
-    # Application-opening commands
-    for word in words:
-        if word in ACTION_WORDS["open"]:
-            return "open"
+    # Application commands
+    for action in ("open", "close"):
+
+        for word in words:
+
+            if word in ACTION_WORDS[action]:
+                return action
 
     return None
 
@@ -64,17 +72,15 @@ def find_target(words):
     if action is None:
         return None
 
-
     # Timer skill receives the entire command.
-    # Duration parsing belongs inside timer.py.
-
     if action == "timer":
         return " ".join(words)
 
+    # Open/close application target extraction.
+    triggers = ACTION_WORDS.get(action)
 
-    # Open Application target extraction.
-
-    triggers = ACTION_WORDS["open"]
+    if not triggers:
+        return None
 
     target_words = []
     collecting = False
