@@ -47,8 +47,31 @@ TIMER_MANAGEMENT_WORDS = {
     "show"
 }
 
+STATUS_WORDS = {
+    "running",
+    "open"
+}
+
 
 def find_action(words):
+    # LIST RUNNING APPLICATIONS
+    if (
+        ("running" in words)
+        and ("apps" in words or "applications" in words)
+        and ("what" in words or "list" in words or "show" in words)
+    ):
+        return "app_status"
+    
+    # APPLICATION STATUS QUERIES
+    if (
+        ("running" in words)
+        or (
+            "open" in words
+            and words
+            and words[0] not in ACTION_WORDS["open"]
+        )
+    ):
+        return "app_status"
     
     joined_command = " ".join(words)
 
@@ -101,6 +124,30 @@ def find_target(words):
     
     if action == "help":
         return "help"
+    
+    if action == "app_status":
+        if (
+            ("running" in words)
+            and ("apps" in words or "applications" in words)
+        ):
+            return "__list_running_apps__"
+        
+        ignored_words = {
+            "is",
+            "open",
+            "running"
+        }
+
+        target_words = [
+            word
+            for word in words
+            if word not in ignored_words
+        ]
+
+        if not target_words:
+            return None
+
+        return " ".join(target_words)
 
     # Timer skill receives the entire command.
     if action == "timer":
