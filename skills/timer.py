@@ -15,15 +15,26 @@ ACTIVE_TIMERS = {}
 TIMER_COUNTER = 0
 TIMER_LOCK = threading.Lock()
 TIMER_LABEL_WORDS = {"called", "named", "as", "titled", "labelled", "labelled as"}
+
 def extract_timer_name(text):
-    words = text.lower().split()
 
-    for index, word in enumerate(words):
-        if word in TIMER_LABEL_WORDS:
-            name_words = words[index + 1:]
+    patterns = [
+        # set a timer called study for 5 seconds
+        r"\b(?:called|named)\s+(.+?)\s+(?:for|after|in)\s+\d+\s*-?\s*(?:seconds?|minutes?|hours?)\b",
 
-            if name_words:
-                return " ".join(name_words)
+        # set a timer for 5 seconds called study
+        r"\d+\s*-?\s*(?:seconds?|minutes?|hours?)\s+(?:called|named)\s+(.+)$"
+    ]
+
+    for pattern in patterns:
+
+        match = re.search(pattern, text)
+
+        if match:
+            timer_name = match.group(1).strip()
+
+            if timer_name:
+                return timer_name
 
     return None
 
@@ -181,21 +192,22 @@ def cancel_all_timers():
 
 
 def execute(task):
-    text = task.data.get("target", "").lower().strip()
+    raw_text = task.data.get("raw_command", "").lower().strip()
+    routing_text = task.data.get("routing_text", raw_text).lower().strip()
 
     # LIST TIMERS
     if (
-        "list timers" in text
-        or "show timers" in text
-        or "active timers" in text
+        "list timer" in routing_text
+        or "show timer" in routing_text
+        or "active timer" in routing_text
     ):
         list_timers()
         return
 
     # CANCEL ALL TIMERS
     if (
-        "cancel all timers" in text
-        or "stop all timers" in text
+        "cancel all timer" in routing_text
+        or "stop all timer" in routing_text
     ):
         cancel_all_timers()
         return
@@ -203,17 +215,18 @@ def execute(task):
     # CANCEL ONE TIMER
     cancel_match = re.search(
         r"(?:cancel|stop)\s+timer\s+#?(\d+)",
-        text
+        routing_text
     )
 
     if cancel_match:
         timer_id = int(cancel_match.group(1))
         cancel_timer(timer_id)
         return
+
     # CANCEL TIMER BY NAME
     cancel_name_match = re.search(
         r"(?:cancel|stop)\s+(?:my\s+)?timer\s+(.+)$",
-        text
+        routing_text
     )
 
     if cancel_name_match:
@@ -224,7 +237,7 @@ def execute(task):
 
     cancel_natural_match = re.search(
         r"(?:cancel|stop)\s+(?:my\s+)?(.+?)\s+timer$",
-        text
+        routing_text
     )
 
     if cancel_natural_match:
@@ -233,13 +246,13 @@ def execute(task):
         return
 
     # START TIMER
-    seconds, duration_label = parse_duration(text)
+    seconds, duration_label = parse_duration(raw_text)
 
     if seconds is None:
         safe_print("❌ I couldn't understand the timer duration.")
         return
 
-    timer_name = extract_timer_name(text)
+    timer_name = extract_timer_name(raw_text)
 
     start_timer(
         seconds,

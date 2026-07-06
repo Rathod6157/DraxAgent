@@ -36,12 +36,12 @@ def tokenize(text):
     return text.split()
 
 
-def fuzzy_match(word, choices):
+def fuzzy_match(word, choices, cutoff=0.8):
     match = get_close_matches(
         word,
         choices,
         n=1,
-        cutoff=0.65
+        cutoff=cutoff
     )
 
     if match:

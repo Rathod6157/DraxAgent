@@ -59,3 +59,6 @@ def show_loaded_capabilities():
     print("   • list timers")
     print("   • cancel timer 1")
     print("   • exit")
+    
+def get_loaded_skills():
+    return list(SKILLS.values())

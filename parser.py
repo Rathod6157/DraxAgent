@@ -34,8 +34,35 @@ NEGATION_WORDS = {
     "never"
 }
 
+HELP_WORDS = {
+    "help",
+    "commands",
+    "features"
+}
+
+TIMER_MANAGEMENT_WORDS = {
+    "cancel",
+    "stop",
+    "list",
+    "show"
+}
+
 
 def find_action(words):
+    
+    joined_command = " ".join(words)
+
+    # Help commands must be standalone requests.
+    if len(words) == 1 and words[0] in HELP_WORDS:
+        return "help"
+
+    if joined_command in {
+        "what can you do",
+        "show me what you can do",
+        "what do",
+        "show what do"
+    }:
+        return "help"
 
     # Timer management commands
     if (
@@ -71,6 +98,9 @@ def find_target(words):
 
     if action is None:
         return None
+    
+    if action == "help":
+        return "help"
 
     # Timer skill receives the entire command.
     if action == "timer":
