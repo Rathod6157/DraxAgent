@@ -22,12 +22,18 @@ def execute(task):
 
         safe_print(f"   • {name}: {description}")
 
-    safe_print("\n💡 Try commands like:")
     safe_print("   • open chrome")
     safe_print("   • close calculator")
+
+    safe_print("   • is chrome running")
+    safe_print("   • is settings open")
+    safe_print("   • what apps are running")
+    safe_print("   • show open windows")
+
     safe_print("   • set a timer for 10 seconds")
     safe_print("   • set a timer for 1 minute called study")
     safe_print("   • list timers")
     safe_print("   • cancel timer study")
+
     safe_print("   • help")
     safe_print("   • exit")

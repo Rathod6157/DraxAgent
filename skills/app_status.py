@@ -6,7 +6,7 @@ from skills.close_app import PROCESS_ALIASES
 
 NAME = "Application Status"
 INTENT = "app_status"
-DESCRIPTION = "Checks whether applications are running."
+DESCRIPTION = "Checks applications, running status, and open windows."
 VERSION = "1.0"
 AUTHOR = "Harshith"
 
