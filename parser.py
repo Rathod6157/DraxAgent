@@ -52,13 +52,28 @@ STATUS_WORDS = {
     "open"
 }
 
+LIST_WORDS = {
+    "list",
+    "show",
+    "display",
+    "what"
+}
+
+WINDOW_WORDS = {
+    "window",
+    "windows",
+    "app",
+    "apps",
+    "application",
+    "applications"
+}
 
 def find_action(words):
-    # LIST RUNNING APPLICATIONS
+    # LIST OPEN WINDOWS / RUNNING APPS
     if (
-        ("running" in words)
-        and ("apps" in words or "applications" in words)
-        and ("what" in words or "list" in words or "show" in words)
+        any(word in LIST_WORDS for word in words)
+        and any(word in WINDOW_WORDS for word in words)
+        and any(word in STATUS_WORDS for word in words)
     ):
         return "app_status"
     
@@ -127,8 +142,9 @@ def find_target(words):
     
     if action == "app_status":
         if (
-            ("running" in words)
-            and ("apps" in words or "applications" in words)
+            any(word in LIST_WORDS for word in words)
+            and any(word in WINDOW_WORDS for word in words)
+            and any(word in STATUS_WORDS for word in words)
         ):
             return "__list_running_apps__"
         

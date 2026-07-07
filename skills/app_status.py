@@ -1,4 +1,4 @@
-import subprocess
+from window_utils import get_open_windows
 
 from terminal import safe_print
 from skills.close_app import PROCESS_ALIASES
@@ -11,80 +11,58 @@ VERSION = "1.0"
 AUTHOR = "Harshith"
 
 
-def get_running_processes():
 
-    result = subprocess.run(
-        ["tasklist", "/FO", "CSV", "/NH"],
-        capture_output=True,
-        text=True,
-        check=True
-    )
-
-    processes = []
-
-    for line in result.stdout.splitlines():
-
-        process_name = line.split(",")[0].strip('"')
-
-        if process_name not in processes:
-            processes.append(process_name)
-
-    return processes
 
 
 def is_application_running(app_name):
 
-    running_processes = get_running_processes()
-
-    aliases = PROCESS_ALIASES.get(app_name.lower())
-
-    if aliases:
-
-        return any(
-            process.lower() == alias.lower()
-            for process in running_processes
-            for alias in aliases
-        )
+    windows = get_open_windows()
 
     search_words = app_name.lower().split()
 
-    return any(
-        any(word in process.lower() for word in search_words)
-        for process in running_processes
-    )
+    for window in windows:
+
+        title = window["title"].lower()
+
+        if all(word in title for word in search_words):
+            return True
+
+    return False
 
 def list_running_applications():
 
-    running_processes = get_running_processes()
+    windows = get_open_windows()
 
-    ignored_processes = {
-        "system",
-        "registry",
-        "smss.exe",
-        "csrss.exe",
-        "wininit.exe",
-        "services.exe",
-        "lsass.exe",
-        "svchost.exe",
-        "fontdrvhost.exe",
-        "dwm.exe",
-        "explorer.exe"
+    ignored_titles = {
+        "Program Manager",
+        "Windows Input Experience"
     }
 
-    visible_processes = [
-        process
-        for process in running_processes
-        if process.lower() not in ignored_processes
-    ]
+    seen = set()
 
-    if not visible_processes:
-        safe_print("❌ I couldn't find any running applications.")
+    visible = []
+
+    for window in windows:
+
+        title = window["title"]
+
+        if title in ignored_titles:
+            continue
+
+        if title in seen:
+            continue
+
+        seen.add(title)
+        visible.append(title)
+
+    if not visible:
+        safe_print("❌ I couldn't find any open windows.")
         return
 
-    safe_print("🖥️ Running applications:")
+    safe_print("Running Applications:")
 
-    for process in visible_processes:
-        safe_print(f"   • {process}")
+    for title in visible:
+        safe_print(f"   • {title}")
 def execute(task):
 
     query = task.data.get("target", "").strip()
