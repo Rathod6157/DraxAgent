@@ -1,5 +1,6 @@
 from difflib import SequenceMatcher
 from app_utils import get_all_applications
+from terminal import safe_print
 
 APPLICATION_CACHE = None
 
@@ -9,9 +10,9 @@ def get_cached_applications():
     global APPLICATION_CACHE
 
     if APPLICATION_CACHE is None:
-        print("🔍 Indexing applications...")
+        safe_print("🔍 Indexing applications...")
         APPLICATION_CACHE = get_all_applications()
-        print(f"✅ Indexed {len(APPLICATION_CACHE)} applications.")
+        safe_print(f"✅ Indexed {len(APPLICATION_CACHE)} applications.")
 
     return APPLICATION_CACHE
 
@@ -19,11 +20,11 @@ def refresh_application_cache():
 
     global APPLICATION_CACHE
 
-    print("🔄 Refreshing application index...")
+    safe_print("🔄 Refreshing application index...")
 
     APPLICATION_CACHE = get_all_applications()
 
-    print(f"✅ Indexed {len(APPLICATION_CACHE)} applications.")
+    safe_print(f"✅ Indexed {len(APPLICATION_CACHE)} applications.")
 
     return APPLICATION_CACHE
 

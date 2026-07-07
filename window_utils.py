@@ -1,6 +1,7 @@
 import ctypes
 from ctypes import wintypes
 import subprocess
+from terminal import safe_print
 
 user32 = ctypes.windll.user32
 
@@ -96,4 +97,4 @@ def get_open_windows():
 if __name__ == "__main__":
 
     for window in get_open_windows():
-        print(window)
+        safe_print(window)

@@ -1,5 +1,6 @@
 import importlib
 import os
+from terminal import safe_print
 
 SKILLS = {}
 
@@ -28,7 +29,7 @@ def load_skills():
 
                 SKILLS[module.INTENT] = module
                 
-                print(f"✅ Loaded skill: {module.NAME}")
+                safe_print(f"✅ Loaded skill: {module.NAME}")
 
 
 def get_skill(intent):
@@ -40,25 +41,25 @@ def get_all_skills():
 
 def show_loaded_capabilities():
     if not SKILLS:
-        print("🤖 No capabilities loaded.")
+        safe_print("🤖 No capabilities loaded.")
         return
 
-    print("\n🤖 What I can do:")
+    safe_print("\n🤖 What I can do:")
 
     for skill in SKILLS.values():
         name = getattr(skill, "NAME", "Unknown Skill")
         description = getattr(skill, "DESCRIPTION", "No description available.")
 
-        print(f"   • {name}: {description}")
+        safe_print(f"   • {name}: {description}")
 
-    print("\n💡 Try commands like:")
-    print("   • open chrome")
-    print("   • close calculator")
-    print("   • set a timer for 10 seconds")
-    print("   • set a timer for 1 minute called study")
-    print("   • list timers")
-    print("   • cancel timer 1")
-    print("   • exit")
-    
+    safe_print("\n💡 Try commands like:")
+    safe_print("   • open chrome")
+    safe_print("   • close calculator")
+    safe_print("   • set a timer for 10 seconds")
+    safe_print("   • set a timer for 1 minute called study")
+    safe_print("   • list timers")
+    safe_print("   • cancel timer 1")
+    safe_print("   • exit")
+
 def get_loaded_skills():
     return list(SKILLS.values())

@@ -1,6 +1,7 @@
 import subprocess
 from terminal import safe_print
 from resolver import decide_application
+from terminal import safe_print
 
 
 NAME = "Open Application"
@@ -33,15 +34,16 @@ def launch_application(match):
             )
 
         else:
-            print(f"❌ Unknown application source: '{source}'.")
+            safe_print(f"❌ Unknown application source: '{source}'.")
             return False
 
         safe_print(f"🚀 Opening {app_name}...")
+        safe_print(f"✅ {app_name.title()} opened.")
         return True
 
     except Exception as error:
-        print(f"❌ Couldn't open '{app_name}'.")
-        print(f"Reason: {error}")
+        safe_print(f"❌ Couldn't open '{app_name}'.")
+        safe_print(f"Reason: {error}")
         return False
     
 def handle_pending_response(pending, user_input):
@@ -76,7 +78,7 @@ def handle_pending_response(pending, user_input):
     }
 
     if response in cancel_words:
-        print("👍 Okay, operation cancelled.")
+        safe_print("👍 Okay, operation cancelled.")
         return None
 
     status = pending["status"]
@@ -88,10 +90,10 @@ def handle_pending_response(pending, user_input):
             return None
 
         if response in no_words:
-            print("👍 Okay, cancelled.")
+            safe_print("👍 Okay, cancelled.")
             return None
 
-        print("🤖 Please answer yes or no.")
+        safe_print("🤖 Please answer yes or no.")
         return pending
 
     if status == "selection_required":
@@ -108,10 +110,10 @@ def handle_pending_response(pending, user_input):
                 return None
 
             if choice == cancel_number:
-                print("👍 Okay, operation cancelled.")
+                safe_print("👍 Okay, operation cancelled.")
                 return None
 
-        print(
+        safe_print(
             f"🤖 Choose a number from 1 to {cancel_number}, "
             f"or type 'cancel'."
         )
@@ -125,7 +127,7 @@ def execute(task):
     query = task.data.get("target")
 
     if not query:
-        print("❌ No application specified.")
+        safe_print("❌ No application specified.")
         return
 
     decision = decide_application(query)
@@ -139,7 +141,7 @@ def execute(task):
     if status == "confirm":
         match = decision["match"]
 
-        print(f"🤖 Did you mean {match['name']}? (yes/no)")
+        safe_print(f"🤖 Did you mean {match['name']}? (yes/no)")
 
         # Temporary return.
         # Next step: main.py will remember this confirmation.
@@ -149,7 +151,7 @@ def execute(task):
         }
 
     if status == "ambiguous":
-        print("🤔 I found multiple possible applications:")
+        safe_print("🤔 I found multiple possible applications:")
 
         candidates = [
             decision["match"],
@@ -157,16 +159,16 @@ def execute(task):
         ]
 
         for index, candidate in enumerate(candidates, start=1):
-            print(f"{index}. {candidate['name']}")
+            safe_print(f"{index}. {candidate['name']}")
         
-        print(f"{len(candidates) + 1}. Cancel operation")
+        safe_print(f"{len(candidates) + 1}. Cancel operation")
 
         return {
             "status": "selection_required",
             "candidates": candidates
         }
 
-    print(f"❌ I couldn't find an application matching '{query}'.")
+    safe_print(f"❌ I couldn't find an application matching '{query}'.")
 
     return {
         "status": "not_found"

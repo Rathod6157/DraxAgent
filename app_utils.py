@@ -2,6 +2,7 @@ import os
 import subprocess
 import json
 from difflib import get_close_matches
+from terminal import safe_print
 
 
 def get_start_menu_apps():
@@ -151,6 +152,6 @@ def find_application(app_name):
 
 if __name__ == "__main__":
 
-    print(find_application("chrome"))
-    print(find_application("microsoft edge"))
-    print(find_application("obs"))
+    safe_print(find_application("chrome"))
+    safe_print(find_application("microsoft edge"))
+    safe_print(find_application("obs"))

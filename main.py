@@ -3,13 +3,13 @@ from executor import execute
 from skills.skill_loader import load_skills, show_loaded_capabilities
 from skills.open_app import handle_pending_response
 from resolver import get_cached_applications
-from terminal import terminal_session
+from terminal import terminal_session, safe_print
 from prompt_toolkit import prompt
 from skills.close_app import handle_pending_response as handle_close_response
 
-print("=" * 35)
-print("🤖 Welcome to DraxAgent v0.1")
-print("=" * 35)
+safe_print("=" * 35)
+safe_print("🤖 Welcome to DraxAgent v0.1")
+safe_print("=" * 35)
 
 load_skills()
 

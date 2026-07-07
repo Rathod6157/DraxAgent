@@ -1,17 +1,17 @@
 from models import Task
 from skills.skill_loader import get_skill
-
+from terminal import safe_print
 
 def execute(task: Task):
 
     if task.intent == "greeting":
-        print("Hey Harshith! 👋")
+        safe_print("Hey Harshith! 👋")
 
     elif task.intent == "exit":
-        print("Goodbye! 👋")
+        safe_print("Goodbye! 👋")
         
     elif task.intent == "cancelled":
-        print("👍 Okay, I won't do that.")
+        safe_print("👍 Okay, I won't do that.")
     
     else:
 
@@ -23,5 +23,5 @@ def execute(task: Task):
 
         else:
 
-            print("I don't understand that yet.")
+            safe_print("I don't understand that yet.")
 
