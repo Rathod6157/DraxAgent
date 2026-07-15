@@ -10,7 +10,7 @@ def get_cached_applications():
     global APPLICATION_CACHE
 
     if APPLICATION_CACHE is None:
-        safe_print("🔍 Indexing applications...")
+        safe_print("Searching applications...🔍")
         APPLICATION_CACHE = get_all_applications()
         safe_print(f"✅ Indexed {len(APPLICATION_CACHE)} applications.")
 

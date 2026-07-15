@@ -10,7 +10,11 @@ AUTHOR = "Harshith"
 
 
 def execute(task):
-    safe_print("\n🤖 What I can do:")
+
+    lines = []
+
+    lines.append("🤖 What I can do:")
+    lines.append("")
 
     for skill in get_loaded_skills():
         name = getattr(skill, "NAME", "Unknown Skill")
@@ -20,20 +24,32 @@ def execute(task):
             "No description available."
         )
 
-        safe_print(f"   • {name}: {description}")
+        lines.append(f"• {name}: {description}")
 
-    safe_print("   • open chrome")
-    safe_print("   • close calculator")
+    lines.append("")
+    lines.append("💡 Try commands like:")
+    lines.append("")
 
-    safe_print("   • is chrome running")
-    safe_print("   • is settings open")
-    safe_print("   • what apps are running")
-    safe_print("   • show open windows")
+    lines.append("• open chrome")
+    lines.append("• close calculator")
 
-    safe_print("   • set a timer for 10 seconds")
-    safe_print("   • set a timer for 1 minute called study")
-    safe_print("   • list timers")
-    safe_print("   • cancel timer study")
+    lines.append("")
 
-    safe_print("   • help")
-    safe_print("   • exit")
+    lines.append("• is chrome running")
+    lines.append("• is settings open")
+    lines.append("• what apps are running")
+    lines.append("• show open windows")
+
+    lines.append("")
+
+    lines.append("• set a timer for 10 seconds")
+    lines.append("• set a timer for 1 minute called study")
+    lines.append("• list timers")
+    lines.append("• cancel timer study")
+
+    lines.append("")
+
+    lines.append("• help")
+    lines.append("• exit")
+
+    safe_print("\n".join(lines))

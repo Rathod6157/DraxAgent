@@ -23,5 +23,5 @@ def execute(task: Task):
 
         else:
 
-            safe_print("I don't understand that yet.")
+            safe_print("I don't understand that yet. Try something else!")
 

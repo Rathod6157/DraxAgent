@@ -39,7 +39,6 @@ def list_running_applications():
     }
 
     seen = set()
-
     visible = []
 
     for window in windows:
@@ -59,10 +58,15 @@ def list_running_applications():
         safe_print("❌ I couldn't find any open windows.")
         return
 
-    safe_print("Running Applications:")
+    lines = []
+
+    lines.append("🖥️ Open windows:")
+    lines.append("")
 
     for title in visible:
-        safe_print(f"   • {title}")
+        lines.append(f"• {title}")
+
+    safe_print("\n".join(lines))
 def execute(task):
 
     query = task.data.get("target", "").strip()

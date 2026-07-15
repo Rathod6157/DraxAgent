@@ -1,7 +1,11 @@
 import subprocess
-from terminal import safe_print
+from terminal import (
+    safe_print,
+    status_print,
+    success_print,
+    error_print,
+)
 from resolver import decide_application
-from terminal import safe_print
 
 
 NAME = "Open Application"
@@ -37,13 +41,15 @@ def launch_application(match):
             safe_print(f"❌ Unknown application source: '{source}'.")
             return False
 
-        safe_print(f"🚀 Opening {app_name}...")
-        safe_print(f"✅ {app_name.title()} opened.")
+        status_print(f"🚀 Opening {app_name}...")
+        success_print(f" {app_name.title()} opened.")
         return True
 
     except Exception as error:
-        safe_print(f"❌ Couldn't open '{app_name}'.")
-        safe_print(f"Reason: {error}")
+        error_print(
+            f"❌ Couldn't open '{app_name}'.\n"
+            f"Reason: {error}"
+        )
         return False
     
 def handle_pending_response(pending, user_input):
@@ -151,17 +157,22 @@ def execute(task):
         }
 
     if status == "ambiguous":
-        safe_print("🤔 I found multiple possible applications:")
-
         candidates = [
             decision["match"],
             *decision["alternatives"]
         ]
 
+        lines = []
+        lines.append("🤔 I found multiple possible applications:")
+        lines.append("")
+
         for index, candidate in enumerate(candidates, start=1):
-            safe_print(f"{index}. {candidate['name']}")
-        
-        safe_print(f"{len(candidates) + 1}. Cancel operation")
+            lines.append(f"{index}. {candidate['name']}")
+
+        lines.append("")
+        lines.append(f"{len(candidates) + 1}. Cancel operation")
+
+        safe_print("\n".join(lines))
 
         return {
             "status": "selection_required",

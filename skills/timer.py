@@ -113,20 +113,25 @@ def list_timers():
         safe_print("⏱️ No active timers.")
         return
 
-    safe_print("⏱️ Active timers:")
+    lines = []
+
+    lines.append("⏱️ Active timers:")
+    lines.append("")
 
     for timer_id, timer_data in timers:
         timer_name = timer_data["name"]
         duration_label = timer_data["duration_label"]
 
         if timer_name:
-            safe_print(
+            lines.append(
                 f"{timer_id}. {timer_name} — {duration_label}"
             )
         else:
-            safe_print(
+            lines.append(
                 f"{timer_id}. {duration_label}"
             )
+
+    safe_print("\n".join(lines))
 
 
 def cancel_timer(timer_id):
@@ -162,15 +167,21 @@ def cancel_timer_by_name(timer_name):
         return
 
     if len(matches) > 1:
-        safe_print(f"🤔 I found multiple timers named '{timer_name}':")
+        lines = []
+
+        lines.append(f"🤔 I found multiple timers named '{timer_name}':")
+        lines.append("")
 
         for timer_id, timer_data in matches:
-            safe_print(
+            lines.append(
                 f"{timer_id}. {timer_data['name']} — "
                 f"{timer_data['duration_label']}"
             )
 
-        safe_print("💡 Cancel one using its timer number.")
+        lines.append("")
+        lines.append("💡 Cancel one using its timer number.")
+
+        safe_print("\n".join(lines))
         return
 
     timer_id, _ = matches[0]
