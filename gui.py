@@ -3,6 +3,10 @@ from skills.skill_loader import load_skills
 from core import understand
 from executor import execute
 from terminal import set_output_callback
+from brain import services
+from brain import bus, observer
+from brain.event_bus import bus
+from PySide6.QtCore import QTimer
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -52,8 +56,15 @@ class DraxWindow(QWidget):
         self.resize(900, 650)
 
         self.build_ui()
+        
+        observer.start()
 
         self.connect_signals()
+        
+        bus.subscribe(
+            "ai_response",
+            self.on_ai_response
+        )
         
     def build_ui(self):
 
@@ -203,6 +214,11 @@ class DraxWindow(QWidget):
 
         self.thread.start()
         
+        bus.emit(
+            "message",
+            command
+        )
+        
     def handle_output(
         self,
         data
@@ -241,7 +257,28 @@ class DraxWindow(QWidget):
             return
 
         self.chat.add_drax_message(text)
+        
+    def on_ai_response(
+        self,
+        message
+    ):
 
+        self.chat.show_typing()
+
+        QTimer.singleShot(
+            2500,
+            lambda: self.finish_ai_response(message)
+        )
+    def finish_ai_response(
+        self,
+        message
+    ):
+
+        self.chat.hide_typing()
+
+        self.chat.add_drax_message(
+            message
+        )
 
 
 def main():
