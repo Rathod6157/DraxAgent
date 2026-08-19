@@ -36,15 +36,11 @@ def execute(task: Task):
                 "result": child_result
             })
 
-        # A compound command is considered successful
-        # if every executable action succeeded.
         success = all(
             item["result"].success
             for item in results
         )
 
-        # If there were no executable actions,
-        # let the conversational brain handle it.
         handled = bool(results)
 
         return ExecutionResult(
@@ -118,6 +114,54 @@ def execute(task: Task):
     ):
 
         return result
+
+    # -----------------------
+    # Pending skill action
+    # -----------------------
+
+    if isinstance(
+        result,
+        dict
+    ):
+
+        status = result.get(
+            "status"
+        )
+
+        if status in {
+            "confirmation_required",
+            "close_confirmation_required",
+            "selection_required"
+        }:
+
+            handler = getattr(
+                skill,
+                "handle_pending_response",
+                None
+            )
+
+            if handler:
+
+                return ExecutionResult(
+                    handled=True,
+                    success=False,
+                    data={
+                        "pending": {
+                            "handler": handler,
+                            "data": result
+                        }
+                    }
+                )
+
+        # -----------------------
+        # Other dictionary result
+        # -----------------------
+
+        return ExecutionResult(
+            handled=True,
+            success=False,
+            data=result
+        )
 
     # -----------------------
     # Old-style skill

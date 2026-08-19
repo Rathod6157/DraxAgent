@@ -1,17 +1,20 @@
+import os
 import subprocess
+
 from terminal import (
     safe_print,
     status_print,
     success_print,
     error_print,
 )
+
 from resolver import decide_application
 
 
 NAME = "Open Application"
 INTENT = "open"
 DESCRIPTION = "Launches desktop applications."
-VERSION = "1.1"
+VERSION = "1.2"
 AUTHOR = "Harshith"
 
 
@@ -23,13 +26,25 @@ def launch_application(match):
 
     try:
 
+        # ---------------------------------
+        # Start Menu applications
+        # ---------------------------------
+
         if source == "start_menu":
-            subprocess.Popen(
-                launch_target,
-                shell=True
+
+            # Windows handles .lnk shortcuts,
+            # Start Menu entries and registered
+            # file/application associations properly.
+            os.startfile(
+                launch_target
             )
 
+        # ---------------------------------
+        # Windows Store / packaged apps
+        # ---------------------------------
+
         elif source == "windows_app":
+
             subprocess.Popen(
                 [
                     "explorer.exe",
@@ -37,22 +52,46 @@ def launch_application(match):
                 ]
             )
 
+        # ---------------------------------
+        # Unknown source
+        # ---------------------------------
+
         else:
-            safe_print(f"❌ Unknown application source: '{source}'.")
+
+            safe_print(
+                f"❌ Unknown application source: '{source}'."
+            )
+
             return False
 
-        status_print(f"🚀 Opening {app_name}...")
-        success_print(f" {app_name.title()} opened.")
+        # ---------------------------------
+        # Report success
+        # ---------------------------------
+
+        status_print(
+            f"🚀 Opening {app_name}..."
+        )
+
+        success_print(
+            f"{app_name.title()} opened."
+        )
+
         return True
 
     except Exception as error:
+
         error_print(
             f"❌ Couldn't open '{app_name}'.\n"
             f"Reason: {error}"
         )
+
         return False
-    
-def handle_pending_response(pending, user_input):
+
+
+def handle_pending_response(
+    pending,
+    user_input
+):
 
     response = user_input.lower().strip()
 
@@ -83,28 +122,56 @@ def handle_pending_response(pending, user_input):
         "nah"
     }
 
+    # ---------------------------------
+    # Cancel
+    # ---------------------------------
+
     if response in cancel_words:
-        safe_print("👍 Okay, operation cancelled.")
+
+        safe_print(
+            "👍 Okay, operation cancelled."
+        )
+
         return None
 
     status = pending["status"]
 
+    # ---------------------------------
+    # Confirmation
+    # ---------------------------------
+
     if status == "confirmation_required":
 
         if response in yes_words:
-            launch_application(pending["match"])
+
+            launch_application(
+                pending["match"]
+            )
+
             return None
 
         if response in no_words:
-            safe_print("👍 Okay, cancelled.")
+
+            safe_print(
+                "👍 Okay, cancelled."
+            )
+
             return None
 
-        safe_print("🤖 Please answer yes or no.")
+        safe_print(
+            "🤖 Please answer yes or no."
+        )
+
         return pending
+
+    # ---------------------------------
+    # Selection
+    # ---------------------------------
 
     if status == "selection_required":
 
         candidates = pending["candidates"]
+
         cancel_number = len(candidates) + 1
 
         if response.isdigit():
@@ -112,74 +179,132 @@ def handle_pending_response(pending, user_input):
             choice = int(response)
 
             if 1 <= choice <= len(candidates):
-                launch_application(candidates[choice - 1])
+
+                launch_application(
+                    candidates[choice - 1]
+                )
+
                 return None
 
             if choice == cancel_number:
-                safe_print("👍 Okay, operation cancelled.")
+
+                safe_print(
+                    "👍 Okay, operation cancelled."
+                )
+
                 return None
 
         safe_print(
-            f"🤖 Choose a number from 1 to {cancel_number}, "
-            f"or type 'cancel'."
+            f"🤖 Choose a number from 1 to "
+            f"{cancel_number}, or type 'cancel'."
         )
 
         return pending
 
     return None
 
+
 def execute(task):
 
-    query = task.data.get("target")
+    query = task.data.get(
+        "target"
+    )
 
     if not query:
-        safe_print("❌ No application specified.")
+
+        safe_print(
+            "❌ No application specified."
+        )
+
         return
 
-    decision = decide_application(query)
+    decision = decide_application(
+        query
+    )
 
     status = decision["status"]
 
+    # ---------------------------------
+    # Resolved
+    # ---------------------------------
+
     if status == "resolved":
-        launch_application(decision["match"])
+
+        launch_application(
+            decision["match"]
+        )
+
         return
 
+    # ---------------------------------
+    # Confirmation required
+    # ---------------------------------
+
     if status == "confirm":
+
         match = decision["match"]
 
-        safe_print(f"🤖 Did you mean {match['name']}? (yes/no)")
+        safe_print(
+            f"🤖 Did you mean "
+            f"{match['name']}? (yes/no)"
+        )
 
-        # Temporary return.
-        # Next step: main.py will remember this confirmation.
         return {
             "status": "confirmation_required",
             "match": match
         }
 
+    # ---------------------------------
+    # Ambiguous
+    # ---------------------------------
+
     if status == "ambiguous":
+
         candidates = [
             decision["match"],
             *decision["alternatives"]
         ]
 
         lines = []
-        lines.append("🤔 I found multiple possible applications:")
+
+        lines.append(
+            "🤔 I found multiple possible applications:"
+        )
+
         lines.append("")
 
-        for index, candidate in enumerate(candidates, start=1):
-            lines.append(f"{index}. {candidate['name']}")
+        for index, candidate in enumerate(
+            candidates,
+            start=1
+        ):
+
+            lines.append(
+                f"{index}. {candidate['name']}"
+            )
 
         lines.append("")
-        lines.append(f"{len(candidates) + 1}. Cancel operation")
 
-        safe_print("\n".join(lines))
+        lines.append(
+            f"{len(candidates) + 1}. Cancel operation"
+        )
+
+        safe_print(
+            "\n".join(lines)
+        )
 
         return {
             "status": "selection_required",
             "candidates": candidates
         }
 
-    safe_print(f"❌ I couldn't find an application matching '{query}'.")
+    # ---------------------------------
+    # Not found
+    # ---------------------------------
+
+    safe_print(
+        f"❌ I couldn't find an application "
+        f"matching '{query}'."
+    )
 
     return {
         "status": "not_found"

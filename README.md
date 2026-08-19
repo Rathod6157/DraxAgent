@@ -24,7 +24,6 @@ proactively assist you as you work.
 - **Language:** Python
 - **AI:** Google Gemini API
 - **GUI:** PyQt
-- **Desktop Awareness:** [whatever library you're using]
 
 ## 🚀 Getting Started
 
