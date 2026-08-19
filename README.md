@@ -2,7 +2,6 @@
 
 > An AI Desktop Companion that lives alongside you — observes, remembers, and grows with you.
 
-![Demo GIF or Screenshot Here]
 
 ## What is DraxAgent?
 
@@ -19,10 +18,6 @@ proactively assist you as you work.
 - 🔀 **Compound Command Handling** — Handles multi-part requests in one message
 - 💬 **Personality System** — Consistent character across all interactions
 - 🎨 **Clean GUI** — PyQt-based chat interface with threading
-
-## 🏗️ Architecture
-
-[Insert your architecture diagram or the description from your doc]
 
 ## 🛠️ Tech Stack
 
