@@ -6,14 +6,101 @@ from brain.companion import companion
 
 class ConversationEngine:
 
+    def __init__(self):
+
+        self.pending = None
+
+    def _handle_pending(self, message):
+
+        if not self.pending:
+            return None
+
+        pending = self.pending
+
+        handler = pending.get("handler")
+
+        if not handler:
+            self.pending = None
+            return None
+
+        result = handler(
+            pending["data"],
+            message
+        )
+
+        # Handler may return another pending state.
+        if result:
+            self.pending = {
+                "handler": handler,
+                "data": result
+            }
+
+            return result
+
+        # Operation finished / cancelled.
+        self.pending = None
+
+        return None
+
+
     def process(
         self,
         message
     ):
 
+        message = message.strip()
+
+        if not message:
+            return None
+
+        # ---------------------------------
+        # Pending operation
+        # ---------------------------------
+
+        if self.pending:
+
+            result = self._handle_pending(
+                message
+            )
+
+            if result is not None:
+
+                return companion.chat(
+                    message,
+                    execution={
+                        "handled": True,
+                        "success": True,
+                        "message": "",
+                        "data": result
+                    }
+                )
+
+            # Pending operation finished.
+            # Don't interpret "yes"/"no" as a new command.
+            return None
+
+        # ---------------------------------
+        # Normal command
+        # ---------------------------------
+
         task = understand(message)
 
         result = execute(task)
+
+        # ---------------------------------
+        # Check for pending skill action
+        # ---------------------------------
+
+        if result.data.get("pending"):
+
+            pending = result.data["pending"]
+
+            self.pending = {
+                "handler": pending["handler"],
+                "data": pending["data"]
+            }
+
+            return result.message
 
         # ---------------------------------
         # Compound command
@@ -45,9 +132,6 @@ class ConversationEngine:
                     "message": child_result.message
                 })
 
-            # If the compound command contains
-            # something conversational, let Drax
-            # respond to that part.
             if conversation_tasks:
 
                 conversation_text = " ".join(
@@ -67,22 +151,16 @@ class ConversationEngine:
                     }
                 )
 
-            # Pure action compound command.
-            # The skills already handled everything.
             return result
 
         # ---------------------------------
         # Normal request
         # ---------------------------------
 
-        # If a skill successfully handled the request,
-        # DO NOT send it to Gemini again.
         if result.handled:
 
             return result
 
-        # Nothing handled it.
-        # Now give Drax's conversational brain a chance.
         return companion.chat(
             message,
             execution={
