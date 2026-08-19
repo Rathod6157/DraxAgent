@@ -1,4 +1,5 @@
 from brain import bus
+from core import understand
 
 
 class DecisionEngine:
@@ -15,31 +16,34 @@ class DecisionEngine:
         message
     ):
 
-        text = message.lower()
+        task = understand(message)
 
-        if "open" in text:
+        print(
+            f"[Decision] Intent: {task.intent}"
+        )
 
-            print(
-                "[Decision] Intent: open_application"
+        if task.intent == "compound":
+
+            parts = task.data.get(
+                "tasks",
+                []
             )
 
-        elif "close" in text:
-
             print(
-                "[Decision] Intent: close_application"
+                f"[Decision] Compound command: "
+                f"{len(parts)} parts"
             )
 
-        elif "timer" in text:
+            for index, child in enumerate(
+                parts,
+                start=1
+            ):
 
-            print(
-                "[Decision] Intent: timer"
-            )
-
-        else:
-
-            print(
-                "[Decision] Intent: conversation"
-            )
+                print(
+                    f"  {index}. "
+                    f"{child.intent}: "
+                    f"{child.data.get('raw_command', '')}"
+                )
 
 
 decision = DecisionEngine()

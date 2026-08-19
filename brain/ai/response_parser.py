@@ -14,25 +14,70 @@ class AIResponse:
 
 class ResponseParser:
 
+    SILENT_VALUES = {
+        "",
+        "silent",
+        "<silent>",
+        "[silent]",
+        "(silent)",
+        "no response",
+        "<no response>",
+    }
+
+
     def parse(
         self,
         response: str
     ) -> AIResponse:
 
+        # ---------------------------------
+        # Empty / invalid response
+        # ---------------------------------
+
         if not response:
 
-            return AIResponse()
+            return AIResponse(
+                speak=False
+            )
 
         response = response.strip()
 
-        if response.upper() == "SILENT":
+        if not response:
 
-            return AIResponse()
+            return AIResponse(
+                speak=False
+            )
+
+
+        # ---------------------------------
+        # Normalize for control-word checks
+        # ---------------------------------
+
+        normalized = response.lower().strip()
+
+        # Remove common surrounding whitespace
+        normalized = " ".join(
+            normalized.split()
+        )
+
+
+        # ---------------------------------
+        # Silent response
+        # ---------------------------------
+
+        if normalized in self.SILENT_VALUES:
+
+            return AIResponse(
+                speak=False
+            )
+
+
+        # ---------------------------------
+        # Normal response
+        # ---------------------------------
 
         return AIResponse(
-
             speak=True,
-
             message=response
         )
 

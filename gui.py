@@ -1,7 +1,5 @@
 import sys
 from skills.skill_loader import load_skills
-from core import understand
-from executor import execute
 from terminal import set_output_callback
 from brain import services
 from brain import bus, observer
@@ -28,19 +26,41 @@ from widgets.input_bar import InputBar
 
 import widgets.theme as theme
 
+from brain.drax import drax
+
+
 class Worker(QObject):
 
     finished = Signal()
 
-    def __init__(self, command):
+    response_ready = Signal(str)
+
+
+    def __init__(
+        self,
+        command
+    ):
+
         super().__init__()
+
         self.command = command
+
 
     def run(self):
 
-        task = understand(self.command)
+        response = drax.chat(
+            self.command
+        )
 
-        execute(task)
+        if isinstance(response, str):
+
+            response = response.strip()
+
+            if response:
+
+                self.response_ready.emit(
+                    response
+                )
 
         self.finished.emit()
         
@@ -191,6 +211,10 @@ class DraxWindow(QWidget):
         self.worker = Worker(command)
 
         self.worker.moveToThread(self.thread)
+        
+        self.worker.response_ready.connect(
+            self.chat.add_drax_message
+        )
 
         self.thread.started.connect(
             self.worker.run
@@ -226,19 +250,33 @@ class DraxWindow(QWidget):
 
         text, kind = data
 
+        # -----------------------------
+        # Temporary status
+        # -----------------------------
+
         if kind == "status":
 
-            self.status_bar.show_message(text)
+            self.status_bar.show_message(
+                text
+            )
 
             return
 
-        self.status_bar.hide_message()
+        # -----------------------------
+        # Assistant response
+        # -----------------------------
 
         if kind == "assistant":
 
-            self.chat.add_drax_message(text)
+            self.chat.add_drax_message(
+                text
+            )
 
             return
+
+        # -----------------------------
+        # Success
+        # -----------------------------
 
         if kind == "success":
 
@@ -246,7 +284,15 @@ class DraxWindow(QWidget):
                 "✅ " + text
             )
 
+            self.status_bar.finish_message(
+                delay=1200
+            )
+
             return
+
+        # -----------------------------
+        # Error
+        # -----------------------------
 
         if kind == "error":
 
@@ -254,10 +300,19 @@ class DraxWindow(QWidget):
                 "❌ " + text
             )
 
+            self.status_bar.finish_message(
+                delay=1200
+            )
+
             return
 
-        self.chat.add_drax_message(text)
-        
+        # -----------------------------
+        # Other output
+        # -----------------------------
+
+        self.chat.add_drax_message(
+            text
+        )       
     def on_ai_response(
         self,
         message

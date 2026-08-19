@@ -10,7 +10,7 @@ DEBUG = True
 # AI
 
 AI_PROVIDER = "gemini"
-AI_MODEL = "gemini-flash-latest"
+AI_MODEL = "gemini-3.5-flash-lite"
 
 # Memory
 
