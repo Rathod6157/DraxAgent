@@ -67,6 +67,7 @@ class Worker(QObject):
 class DraxWindow(QWidget):
 
     output_signal = Signal(object)
+    exit_signal = Signal()
 
     def __init__(self):
         super().__init__()
@@ -185,13 +186,23 @@ class DraxWindow(QWidget):
         self.output_signal.connect(
             self.handle_output
         )
-
+        self.exit_signal.connect(
+                    self.schedule_exit
+                )
+        
         set_output_callback(
             lambda text, kind:
             self.output_signal.emit(
                 (text, kind)
             )
         )
+        
+        bus.subscribe(
+            "exit_requested",
+            lambda: self.exit_signal.emit()
+        )
+        
+        
         
     
     
@@ -256,8 +267,32 @@ class DraxWindow(QWidget):
 
         if kind == "status":
 
+            is_closing = (
+                "closing" in text.lower()
+                or text.startswith("🛑")
+            )
+
             self.status_bar.show_message(
-                text
+                text,
+                color="#FF4D5A" if is_closing else "#49D17D"
+            )
+
+            return
+        
+        if kind == "status_done":
+
+            is_closing = (
+                "closed" in text.lower()
+                or "closing" in text.lower()
+            )
+
+            self.status_bar.show_message(
+                text,
+                color="#FF4D5A" if is_closing else "#49D17D"
+            )
+
+            self.status_bar.finish_message(
+                delay=800 if is_closing else 300
             )
 
             return
@@ -333,6 +368,13 @@ class DraxWindow(QWidget):
 
         self.chat.add_drax_message(
             message
+        )
+    
+    def schedule_exit(self):
+
+        QTimer.singleShot(
+            3500,
+            QApplication.quit
         )
 
 

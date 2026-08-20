@@ -35,6 +35,12 @@ def status_print(*args):
         "status"
     )
 
+def status_done_print(*args):
+    emit(
+        " ".join(str(arg) for arg in args),
+        "status_done"
+    )
+
 
 def success_print(*args):
     emit(

@@ -3,44 +3,20 @@ from executor import execute
 
 from brain.companion import companion
 
+from skills.open_app import (
+    handle_pending_response as handle_open_pending
+)
+
+from skills.close_app import (
+    handle_pending_response as handle_close_pending
+)
+
 
 class ConversationEngine:
 
     def __init__(self):
 
-        self.pending = None
-
-    def _handle_pending(self, message):
-
-        if not self.pending:
-            return None
-
-        pending = self.pending
-
-        handler = pending.get("handler")
-
-        if not handler:
-            self.pending = None
-            return None
-
-        result = handler(
-            pending["data"],
-            message
-        )
-
-        # Handler may return another pending state.
-        if result:
-            self.pending = {
-                "handler": handler,
-                "data": result
-            }
-
-            return result
-
-        # Operation finished / cancelled.
-        self.pending = None
-
-        return None
+        self.pending_action = None
 
 
     def process(
@@ -48,59 +24,74 @@ class ConversationEngine:
         message
     ):
 
-        message = message.strip()
-
-        if not message:
-            return None
-
         # ---------------------------------
-        # Pending operation
+        # Pending action
         # ---------------------------------
 
-        if self.pending:
+        if self.pending_action:
 
-            result = self._handle_pending(
-                message
+            status = self.pending_action.get(
+                "status"
             )
 
-            if result is not None:
+            if status == "close_confirmation_required":
 
-                return companion.chat(
-                    message,
-                    execution={
-                        "handled": True,
-                        "success": True,
-                        "message": "",
-                        "data": result
-                    }
+                self.pending_action = (
+                    handle_close_pending(
+                        self.pending_action,
+                        message
+                    )
                 )
 
-            # Pending operation finished.
-            # Don't interpret "yes"/"no" as a new command.
-            return None
+                return
+
+
+            self.pending_action = (
+                handle_open_pending(
+                    self.pending_action,
+                    message
+                )
+            )
+
+            return
+
 
         # ---------------------------------
-        # Normal command
+        # Understand request
         # ---------------------------------
 
-        task = understand(message)
+        task = understand(
+            message
+        )
 
-        result = execute(task)
+        result = execute(
+            task
+        )
+
 
         # ---------------------------------
-        # Check for pending skill action
+        # Store pending action
         # ---------------------------------
 
-        if result.data.get("pending"):
+        if isinstance(
+            result,
+            dict
+        ):
 
-            pending = result.data["pending"]
+            status = result.get(
+                "status"
+            )
 
-            self.pending = {
-                "handler": pending["handler"],
-                "data": pending["data"]
-            }
+            if status in {
+                "confirmation_required",
+                "selection_required",
+                "close_confirmation_required"
+            }:
 
-            return result.message
+                self.pending_action = result
+
+                return
+
 
         # ---------------------------------
         # Compound command
@@ -132,6 +123,7 @@ class ConversationEngine:
                     "message": child_result.message
                 })
 
+
             if conversation_tasks:
 
                 conversation_text = " ".join(
@@ -151,7 +143,9 @@ class ConversationEngine:
                     }
                 )
 
+
             return result
+
 
         # ---------------------------------
         # Normal request
@@ -160,6 +154,7 @@ class ConversationEngine:
         if result.handled:
 
             return result
+
 
         return companion.chat(
             message,

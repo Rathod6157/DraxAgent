@@ -17,8 +17,6 @@ def execute(task: Task):
 
         for child_task in task.data.get("tasks", []):
 
-            # Conversation parts should NOT be executed
-            # as skills. They will be sent to Drax later.
             if child_task.intent == "conversation":
 
                 conversation_tasks.append(
@@ -39,6 +37,10 @@ def execute(task: Task):
         success = all(
             item["result"].success
             for item in results
+            if isinstance(
+                item["result"],
+                ExecutionResult
+            )
         )
 
         handled = bool(results)
@@ -52,6 +54,7 @@ def execute(task: Task):
             }
         )
 
+
     # -----------------------
     # Greeting
     # -----------------------
@@ -62,6 +65,7 @@ def execute(task: Task):
             handled=False
         )
 
+
     # -----------------------
     # Exit
     # -----------------------
@@ -71,8 +75,9 @@ def execute(task: Task):
         return ExecutionResult(
             handled=True,
             success=True,
-            message="Goodbye! 👋"
+            exit_requested=True,
         )
+
 
     # -----------------------
     # Cancelled
@@ -85,6 +90,7 @@ def execute(task: Task):
             success=True,
             message="👍 Okay, I won't do that."
         )
+
 
     # -----------------------
     # Skills
@@ -100,9 +106,11 @@ def execute(task: Task):
             handled=False
         )
 
+
     result = skill.execute(
         task
     )
+
 
     # -----------------------
     # New-style skill
@@ -115,8 +123,9 @@ def execute(task: Task):
 
         return result
 
+
     # -----------------------
-    # Pending skill action
+    # Pending skill operation
     # -----------------------
 
     if isinstance(
@@ -130,28 +139,20 @@ def execute(task: Task):
 
         if status in {
             "confirmation_required",
-            "close_confirmation_required",
-            "selection_required"
+            "selection_required",
+            "close_confirmation_required"
         }:
 
-            handler = getattr(
-                skill,
-                "handle_pending_response",
-                None
-            )
+            # IMPORTANT:
+            # Return the pending operation directly.
+            #
+            # ConversationEngine will remember it
+            # and route the user's next message
+            # ("yes", "no", "1", etc.) back to
+            # the correct skill handler.
 
-            if handler:
+            return result
 
-                return ExecutionResult(
-                    handled=True,
-                    success=False,
-                    data={
-                        "pending": {
-                            "handler": handler,
-                            "data": result
-                        }
-                    }
-                )
 
         # -----------------------
         # Other dictionary result
@@ -162,6 +163,7 @@ def execute(task: Task):
             success=False,
             data=result
         )
+
 
     # -----------------------
     # Old-style skill

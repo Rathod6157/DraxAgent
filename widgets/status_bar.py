@@ -19,6 +19,8 @@ class StatusBar(QWidget):
     def __init__(self):
         super().__init__()
 
+        self.status_color = "#49D17D"
+
         self.build_ui()
 
 
@@ -52,6 +54,14 @@ class StatusBar(QWidget):
             font-size: 13px;
         }}
         """)
+
+        # -----------------------------
+        # Status dot
+        # -----------------------------
+
+        self.set_dot_color(
+            self.status_color
+        )
 
         # -----------------------------
         # Dot animation
@@ -109,10 +119,33 @@ class StatusBar(QWidget):
 
 
     # =================================
+    # DOT COLOR
+    # =================================
+
+    def set_dot_color(
+        self,
+        color
+    ):
+
+        self.status_color = color
+
+        self.icon.setStyleSheet(
+            f"""
+            color: {color};
+            font-size: 13px;
+            """
+        )
+
+
+    # =================================
     # SHOW / START
     # =================================
 
-    def show_message(self, text):
+    def show_message(
+        self,
+        text,
+        color=None
+    ):
 
         self.fade_timer.stop()
         self.fade_animation.stop()
@@ -123,6 +156,18 @@ class StatusBar(QWidget):
 
         self.dots = 1
         self.icon.setText("●")
+
+        if color is not None:
+
+            self.set_dot_color(
+                color
+            )
+
+        else:
+
+            self.set_dot_color(
+                "#49D17D"
+            )
 
         self.show()
 
@@ -153,13 +198,30 @@ class StatusBar(QWidget):
     # UPDATE MESSAGE
     # =================================
 
-    def update_message(self, text):
+    def update_message(
+        self,
+        text,
+        color=None
+    ):
 
         if not self.isVisible():
-            self.show_message(text)
+
+            self.show_message(
+                text,
+                color
+            )
+
             return
 
-        self.label.setText(text)
+        self.label.setText(
+            text
+        )
+
+        if color is not None:
+
+            self.set_dot_color(
+                color
+            )
 
 
     # =================================
@@ -175,13 +237,18 @@ class StatusBar(QWidget):
         self.timer.stop()
 
         if text is not None:
-            self.label.setText(text)
+
+            self.label.setText(
+                text
+            )
 
         self.dots = 1
         self.icon.setText("●")
 
         # Wait before fading out.
-        self.fade_timer.start(delay)
+        self.fade_timer.start(
+            delay
+        )
 
 
     # =================================
@@ -220,10 +287,13 @@ class StatusBar(QWidget):
     def _finish_fade(self):
 
         try:
+
             self.fade_animation.finished.disconnect(
                 self._finish_fade
             )
+
         except RuntimeError:
+
             pass
 
         self.hide()
@@ -256,6 +326,10 @@ class StatusBar(QWidget):
         self.dots = 1
         self.icon.setText("●")
 
+        self.set_dot_color(
+            "#49D17D"
+        )
+
         self.is_fading = False
 
 
@@ -268,6 +342,7 @@ class StatusBar(QWidget):
         self.dots += 1
 
         if self.dots > 3:
+
             self.dots = 1
 
         self.icon.setText(
