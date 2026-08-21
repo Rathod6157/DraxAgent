@@ -2,6 +2,7 @@ import os
 import subprocess
 import json
 from difflib import get_close_matches
+
 from terminal import safe_print
 
 
@@ -25,13 +26,20 @@ def get_start_menu_apps():
 
             for file in files:
 
-                if file.endswith(".lnk"):
+                if not file.endswith(".lnk"):
+                    continue
 
-                    name = os.path.splitext(file)[0].lower()
+                name = os.path.splitext(
+                    file
+                )[0].lower()
 
-                    apps[name] = os.path.join(root, file)
+                apps[name] = os.path.join(
+                    root,
+                    file
+                )
 
     return apps
+
 
 def get_windows_apps():
 
@@ -42,6 +50,7 @@ def get_windows_apps():
     """
 
     try:
+
         result = subprocess.run(
             [
                 "powershell",
@@ -58,7 +67,9 @@ def get_windows_apps():
         if result.returncode != 0:
             return {}
 
-        data = json.loads(result.stdout)
+        data = json.loads(
+            result.stdout
+        )
 
         if isinstance(data, dict):
             data = [data]
@@ -71,73 +82,189 @@ def get_windows_apps():
             app_id = app.get("AppID")
 
             if name and app_id:
+
                 apps[name.lower()] = app_id
 
         return apps
 
-    except (json.JSONDecodeError, OSError):
+    except (
+        json.JSONDecodeError,
+        OSError
+    ):
+
         return {}
+
+
+def resolve_shortcut_target(
+    shortcut
+):
+
+    """
+    Resolve a Windows .lnk shortcut to
+    its target executable.
+
+    Returns None if the target cannot
+    be resolved.
+    """
+
+    powershell_command = f"""
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut('{shortcut}')
+    $shortcut.TargetPath
+    """
+
+    try:
+
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                powershell_command
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace"
+        )
+
+        if result.returncode != 0:
+            return None
+
+        target = result.stdout.strip()
+
+        if not target:
+            return None
+
+        return target
+
+    except OSError:
+
+        return None
+
 
 def get_all_applications():
 
     apps = {}
 
-    for name, path in get_start_menu_apps().items():
+    # ---------------------------------
+    # Start Menu applications
+    # ---------------------------------
+
+    for name, path in (
+        get_start_menu_apps().items()
+    ):
+
+        executable = (
+            resolve_shortcut_target(path)
+        )
+
         apps[name] = {
+
             "name": name,
+
             "launch_target": path,
-            "source": "start_menu"
+
+            "source": "start_menu",
+
+            "executable": executable
         }
 
-    for name, app_id in get_windows_apps().items():
+
+    # ---------------------------------
+    # Windows applications
+    # ---------------------------------
+
+    for name, app_id in (
+        get_windows_apps().items()
+    ):
 
         apps[name] = {
+
             "name": name,
+
             "launch_target": app_id,
-            "source": "windows_app"
+
+            "source": "windows_app",
+
+            "executable": None
         }
+
 
     return apps
 
-def find_application(app_name):
-    """
-    Returns the best executable or shortcut path
-    for the requested application.
 
-    Returns None if nothing is found.
+def find_application(
+    app_name
+):
+
     """
+    Returns the best executable or
+    shortcut path for the requested
+    application.
+    """
+
     apps = get_start_menu_apps()
-    
-    if not app_name.strip():
-        return None
-    
-    # Exact match
-    if app_name.lower() in apps:
-        return apps[app_name.lower()]
 
+    if not app_name.strip():
+
+        return None
+
+    # ---------------------------------
+    # Exact match
+    # ---------------------------------
+
+    if app_name.lower() in apps:
+
+        return apps[
+            app_name.lower()
+        ]
+
+
+    # ---------------------------------
     # Score match
+    # ---------------------------------
+
     best_score = 0
     best_path = None
 
-    query_words = app_name.lower().split()
+    query_words = (
+        app_name.lower().split()
+    )
 
     for name, path in apps.items():
 
         score = 0
+
         app_words = name.split()
 
         for word in query_words:
+
             if word in app_words:
+
                 score += 10
-        score -= abs(len(app_words) - len(query_words))
+
+        score -= abs(
+            len(app_words)
+            - len(query_words)
+        )
 
         if score > best_score:
+
             best_score = score
+
             best_path = path
 
+
     if best_score > 0:
+
         return best_path
+
+
+    # ---------------------------------
     # Fuzzy match
+    # ---------------------------------
+
     matches = get_close_matches(
         app_name.lower(),
         apps.keys(),
@@ -146,12 +273,30 @@ def find_application(app_name):
     )
 
     if matches:
-        return apps[matches[0]]
+
+        return apps[
+            matches[0]
+        ]
 
     return None
 
+
 if __name__ == "__main__":
 
-    safe_print(find_application("chrome"))
-    safe_print(find_application("microsoft edge"))
-    safe_print(find_application("obs"))
+    safe_print(
+        find_application(
+            "chrome"
+        )
+    )
+
+    safe_print(
+        find_application(
+            "microsoft edge"
+        )
+    )
+
+    safe_print(
+        find_application(
+            "obs"
+        )
+    )

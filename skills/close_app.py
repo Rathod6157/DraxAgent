@@ -270,8 +270,8 @@ def handle_pending_response(
 
     if closed_any:
 
-        status_done_print(
-            f"👋 Finished closing {app_name}."
+        safe_print(
+            f"✅ Finished closing {app_name}."
         )
 
     else:
