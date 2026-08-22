@@ -28,6 +28,11 @@ import widgets.theme as theme
 
 from brain.drax import drax
 
+from widgets.summon_window import (
+    SummonWindow,
+    GlobalHotkeyFilter,
+)
+
 
 class Worker(QObject):
 
@@ -77,6 +82,16 @@ class DraxWindow(QWidget):
         self.resize(900, 650)
 
         self.build_ui()
+        
+        self.summon = SummonWindow()
+
+        self.hotkey_filter = GlobalHotkeyFilter(
+            self.summon.show_summon
+        )
+
+        QApplication.instance().installNativeEventFilter(
+            self.hotkey_filter
+        )
         
         observer.start()
 
@@ -376,6 +391,22 @@ class DraxWindow(QWidget):
             3500,
             QApplication.quit
         )
+        
+    def closeEvent(self, event):
+
+        if hasattr(self, "hotkey_filter"):
+
+            self.hotkey_filter.unregister()
+
+            QApplication.instance().removeNativeEventFilter(
+                self.hotkey_filter
+            )
+
+        if hasattr(self, "summon"):
+
+            self.summon.close()
+
+        event.accept()
 
 
 def main():

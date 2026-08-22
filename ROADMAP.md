@@ -8,7 +8,7 @@ DraxAgent is a desktop teammate that understands user intent, remembers preferen
 
 ## Vision
 
-Instead of forcing users to remember commands, DraxAgent should understand natural language, learn habits over time, and execute complete workflows.
+Instead of forcing users to remember commands, DraxAgent should understand natural language, learn habits over time, and execute complete workflows. Imagine how having a second set of brains and hands would actually feel... Ywp, that's what DraxAgent would do. Drax is a companion, just like how you feel, observe and remember... 
 
 ---
 
