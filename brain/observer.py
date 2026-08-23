@@ -13,6 +13,24 @@ from brain.application_identity import (
 
 class Observer:
 
+    # ---------------------------------
+    # Windows that belong to Drax itself
+    # ---------------------------------
+
+    IGNORED_TITLES = {
+        "",
+        "Task Switching",
+        "Program Manager",
+        "Windows Input Experience",
+
+        # Drax main window
+        "DraxAgent",
+
+        # Drax summon window
+        "Drax",
+    }
+
+
     def __init__(self):
 
         self.running = False
@@ -95,15 +113,20 @@ class Observer:
         }
 
 
+    def is_ignored_window(
+        self,
+        info
+    ):
+
+        title = info.get(
+            "title",
+            ""
+        )
+
+        return title in self.IGNORED_TITLES
+
+
     def loop(self):
-
-        ignored = {
-            "",
-            "Task Switching",
-            "Program Manager",
-            "Windows Input Experience",
-        }
-
 
         while self.running:
 
@@ -123,25 +146,35 @@ class Observer:
                 hwnd
             )
 
-            title = info["title"]
 
-            pid = info["pid"]
+            # ---------------------------------
+            # Ignore Drax / system windows.
+            #
+            # IMPORTANT:
+            # We do NOT update last_hwnd or
+            # last_pid here.
+            #
+            # This means Drax temporarily
+            # appearing on screen does not
+            # destroy the previous real
+            # activity.
+            # ---------------------------------
 
-
-            if title in ignored:
+            if self.is_ignored_window(info):
 
                 time.sleep(0.5)
 
                 continue
 
 
+            title = info["title"]
+
+            pid = info["pid"]
+
+
             # ---------------------------------
-            # Detect actual window/application
+            # Detect actual external window
             # change.
-            #
-            # Title changes inside the same
-            # window do NOT create a new
-            # foreground event.
             # ---------------------------------
 
             window_changed = (

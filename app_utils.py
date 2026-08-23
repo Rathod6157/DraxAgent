@@ -6,6 +6,10 @@ from difflib import get_close_matches
 from terminal import safe_print
 
 
+# ============================================================
+# Start Menu Applications
+# ============================================================
+
 def get_start_menu_apps():
 
     apps = {}
@@ -26,12 +30,13 @@ def get_start_menu_apps():
 
             for file in files:
 
-                if not file.endswith(".lnk"):
+                if not file.lower().endswith(".lnk"):
                     continue
 
-                name = os.path.splitext(
-                    file
-                )[0].lower()
+                name = os.path.splitext(file)[0].strip().lower()
+
+                if not name:
+                    continue
 
                 apps[name] = os.path.join(
                     root,
@@ -40,6 +45,10 @@ def get_start_menu_apps():
 
     return apps
 
+
+# ============================================================
+# Windows / Microsoft Store Applications
+# ============================================================
 
 def get_windows_apps():
 
@@ -61,10 +70,14 @@ def get_windows_apps():
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace"
+            errors="replace",
+            timeout=15
         )
 
         if result.returncode != 0:
+            return {}
+
+        if not result.stdout.strip():
             return {}
 
         data = json.loads(
@@ -83,29 +96,38 @@ def get_windows_apps():
 
             if name and app_id:
 
-                apps[name.lower()] = app_id
+                apps[name.strip().lower()] = app_id
 
         return apps
 
     except (
         json.JSONDecodeError,
-        OSError
+        OSError,
+        subprocess.TimeoutExpired
     ):
 
         return {}
 
 
+# ============================================================
+# Resolve Shortcut Target
+# ============================================================
+#
+# Kept for compatibility with the rest of Drax.
+#
+# IMPORTANT:
+# We DO NOT call this for every shortcut during application
+# indexing anymore.
+#
+# Start Menu .lnk files can be launched directly with
+# os.startfile(), so resolving every target beforehand is
+# unnecessary and extremely slow.
+#
+# ============================================================
+
 def resolve_shortcut_target(
     shortcut
 ):
-
-    """
-    Resolve a Windows .lnk shortcut to
-    its target executable.
-
-    Returns None if the target cannot
-    be resolved.
-    """
 
     powershell_command = f"""
     $shell = New-Object -ComObject WScript.Shell
@@ -125,7 +147,8 @@ def resolve_shortcut_target(
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace"
+            errors="replace",
+            timeout=5
         )
 
         if result.returncode != 0:
@@ -138,10 +161,17 @@ def resolve_shortcut_target(
 
         return target
 
-    except OSError:
+    except (
+        OSError,
+        subprocess.TimeoutExpired
+    ):
 
         return None
 
+
+# ============================================================
+# Combined Application Index
+# ============================================================
 
 def get_all_applications():
 
@@ -151,23 +181,23 @@ def get_all_applications():
     # Start Menu applications
     # ---------------------------------
 
-    for name, path in (
-        get_start_menu_apps().items()
-    ):
+    start_menu_apps = get_start_menu_apps()
 
-        executable = (
-            resolve_shortcut_target(path)
-        )
+    for name, path in start_menu_apps.items():
 
         apps[name] = {
 
             "name": name,
 
+            # The .lnk itself is the launch target.
+            # Windows resolves it when launched.
             "launch_target": path,
 
             "source": "start_menu",
 
-            "executable": executable
+            # We no longer resolve every shortcut here.
+            # This keeps indexing fast.
+            "executable": None
         }
 
 
@@ -175,9 +205,9 @@ def get_all_applications():
     # Windows applications
     # ---------------------------------
 
-    for name, app_id in (
-        get_windows_apps().items()
-    ):
+    windows_apps = get_windows_apps()
+
+    for name, app_id in windows_apps.items():
 
         apps[name] = {
 
@@ -193,6 +223,10 @@ def get_all_applications():
 
     return apps
 
+
+# ============================================================
+# Legacy Application Finder
+# ============================================================
 
 def find_application(
     app_name
@@ -210,15 +244,16 @@ def find_application(
 
         return None
 
+
     # ---------------------------------
     # Exact match
     # ---------------------------------
 
-    if app_name.lower() in apps:
+    query = app_name.lower().strip()
 
-        return apps[
-            app_name.lower()
-        ]
+    if query in apps:
+
+        return apps[query]
 
 
     # ---------------------------------
@@ -228,9 +263,7 @@ def find_application(
     best_score = 0
     best_path = None
 
-    query_words = (
-        app_name.lower().split()
-    )
+    query_words = query.split()
 
     for name, path in apps.items():
 
@@ -266,7 +299,7 @@ def find_application(
     # ---------------------------------
 
     matches = get_close_matches(
-        app_name.lower(),
+        query,
         apps.keys(),
         n=1,
         cutoff=0.5
@@ -280,6 +313,10 @@ def find_application(
 
     return None
 
+
+# ============================================================
+# Test
+# ============================================================
 
 if __name__ == "__main__":
 

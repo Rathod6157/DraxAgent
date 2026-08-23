@@ -140,6 +140,47 @@ class ActivityEngine:
         )
 
 
+    def is_drax_window(
+        self,
+        application,
+        process
+    ):
+
+        application_value = (
+            application
+            or ""
+        ).lower()
+
+        process_value = (
+            process
+            or ""
+        ).lower()
+
+
+        # ---------------------------------
+        # DraxAgent / Python itself
+        # ---------------------------------
+
+        if (
+            "draxagent" in application_value
+            or "drax" in application_value
+        ):
+            return True
+
+
+        if process_value in {
+            "python.exe",
+            "python3.exe",
+            "python3.11",
+            "python3.11.exe",
+        }:
+
+            return True
+
+
+        return False
+
+
     def on_window_changed(
         self,
         data
@@ -154,6 +195,28 @@ class ActivityEngine:
         )
 
 
+        # ---------------------------------
+        # Ignore DraxAgent itself
+        # ---------------------------------
+        #
+        # When DraxAgent becomes foreground,
+        # Windows reports Python as the active
+        # process. We don't want that to destroy
+        # the user's previous meaningful activity.
+        #
+
+        if self.is_drax_window(
+            application,
+            process
+        ):
+
+            return
+
+
+        # ---------------------------------
+        # Classify real user activity
+        # ---------------------------------
+
         activity_name, confidence = (
             self.classify(
                 application,
@@ -162,12 +225,18 @@ class ActivityEngine:
         )
 
 
+        # ---------------------------------
+        # Update activity state
+        # ---------------------------------
+
         activity.update(
             activity_name,
             confidence,
             [
                 context.current_window
-            ]
+            ],
+            application=application,
+            process=process
         )
 
 
