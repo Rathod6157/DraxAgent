@@ -90,8 +90,9 @@ Examples:
 Open Chrome
 Close Spotify
 Set a timer
+```
 
-🔀 Compound Commands
+### 🔀 Compound Commands
 
 Supports multiple actions within a single request.
 
@@ -100,19 +101,20 @@ Open Chrome and then open Spotify
 
 DraxAgent can combine:
 
-What the user said
+```What the user said
 Current desktop context
 Recent memory
 Action execution results
 Current activity
+```
 
 to produce more context-aware responses.
 
-🎭 Personality System
+### 🎭 Personality System
 
 Maintains a consistent conversational personality instead of treating every response as an isolated AI completion.
 
-📡 Event-Driven Architecture
+### 📡 Event-Driven Architecture
 
 Core components communicate through an internal event bus.
 
@@ -128,7 +130,7 @@ GUI
 
 to remain relatively independent from each other.
 
-🎨 Desktop GUI
+### 🎨 Desktop GUI
 
 A PyQt-based interface provides:
 
@@ -137,10 +139,11 @@ Chat interaction
 Activity updates
 Execution feedback
 Desktop companion-style UI
-🏗️ Architecture
+
+## 🏗️ Architecture
 
 DraxAgent is built as a collection of modular systems rather than one large assistant class.
-
+```
                     ┌──────────────────┐
                     │      DraxAgent   │
                     └────────┬─────────┘
@@ -166,10 +169,11 @@ DraxAgent is built as a collection of modular systems rather than one large assi
           AI Activity Classifier
                  │
               Gemini
+```
 
 The architecture is intentionally modular so individual systems can evolve without rewriting the entire application.
 
-🛠️ Tech Stack
+## 🛠️ Tech Stack
 Language: Python
 AI: Google Gemini API
 GUI: PyQt
@@ -178,7 +182,7 @@ Process Information: psutil
 Architecture: Event-driven modular components
 Configuration: Environment variables
 
-🚀 Getting Started
+## 🚀 Getting Started
 Prerequisites
 Python 3.10+
 Windows
@@ -196,7 +200,7 @@ GEMINI_API_KEY=your_api_key_here
 
 Then start DraxAgent using the project's entry point.
 
-🧪 Project Status
+## 🧪 Project Status
 
 DraxAgent is currently under active development.
 
@@ -212,7 +216,7 @@ Live GUI activity updates
 
 The project is now moving toward making the assistant more reliable, context-aware, and genuinely useful in day-to-day desktop workflows.
 
-🗺️ Roadmap
+## 🗺️ Roadmap
 Intelligence
  Smarter activity classification
  Activity confidence and stability
@@ -238,12 +242,12 @@ Performance
  Reduced unnecessary AI calls
  Improved asynchronous processing
 
-🤝 Contributing
+## 🤝 Contributing
 
 DraxAgent is currently a personal project and an ongoing experiment in building an intelligent desktop companion.
 
 Ideas, feedback, and contributions are welcome.
 
-📜 License
+## 📜 License
 
 License information will be added as the project develops.
