@@ -37,6 +37,7 @@ class Observer:
 
         self.last_hwnd = None
         self.last_pid = None
+        self.last_title = None
 
 
     def start(self):
@@ -180,6 +181,7 @@ class Observer:
             window_changed = (
                 hwnd != self.last_hwnd
                 or pid != self.last_pid
+                or title != self.last_title
             )
 
 
@@ -188,6 +190,8 @@ class Observer:
                 self.last_hwnd = hwnd
 
                 self.last_pid = pid
+                
+                self.last_title = title
 
                 bus.emit(
                     "window_changed",

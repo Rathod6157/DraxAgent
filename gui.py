@@ -152,8 +152,8 @@ class DraxWindow(QWidget):
         )
 
         bus.subscribe(
-            "window_changed",
-            self.on_window_changed
+            "activity_updated",
+            self.on_activity_changed
         )
         
         QTimer.singleShot(
@@ -803,34 +803,29 @@ class DraxWindow(QWidget):
     # ACTIVITY
     # =================================
 
-    def on_window_changed(
+    def on_activity_changed(
         self,
-        data
+        data=None
     ):
 
+        # ActivityEngine has finished updating
+        # the shared Activity state. Read the
+        # current context now so the card never
+        # renders one activity behind.
+
         application = (
-            data.get(
-                "application"
-            )
+            context.current_application
+            or activity.application
+            or "Unknown"
         )
 
         process = (
-            data.get(
-                "process"
-            )
+            context.current_process
         )
 
         # ---------------------------------
         # Ignore DraxAgent itself
         # ---------------------------------
-        #
-        # When DraxAgent becomes foreground,
-        # Windows may report Python as the
-        # active process.
-        #
-        # Do NOT overwrite the last meaningful
-        # user activity with Drax/Python.
-        #
 
         if activity_engine.is_drax_window(
             application,
@@ -840,28 +835,14 @@ class DraxWindow(QWidget):
             return
 
         # ---------------------------------
-        # Real user activity
+        # Render the latest activity state
         # ---------------------------------
 
-        activity_name = (
-            activity.name
-        )
-
-        window_title = (
-            data.get(
-                "title"
-            )
-        )
-
-        started_at = (
-            context.window_started
-        )
-
         self.activity_card.update_activity(
-            activity_name,
+            activity.name,
             application,
-            window_title,
-            started_at
+            context.current_window,
+            activity.started_at
         )
 
     # =================================

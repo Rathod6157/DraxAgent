@@ -3,89 +3,12 @@ from brain.activity import activity
 from brain.event_bus import bus
 from brain.activity_history import activity_history
 
+from brain.intelligence.activity_classifier import (
+    activity_classifier
+)
+
 
 class ActivityEngine:
-
-    # ---------------------------------
-    # Application → Activity rules
-    # ---------------------------------
-
-    ACTIVITY_RULES = {
-
-        "coding": {
-            "applications": {
-                "Code.exe",
-                "code.exe",
-                "Visual Studio Code",
-                "PyCharm",
-                "Sublime Text",
-                "Notepad++",
-            },
-            "confidence": 95
-        },
-
-        "browsing": {
-            "applications": {
-                "chrome.exe",
-                "msedge.exe",
-                "firefox.exe",
-                "Google Chrome",
-                "Microsoft Edge",
-                "Mozilla Firefox",
-            },
-            "confidence": 80
-        },
-
-        "music": {
-            "applications": {
-                "spotify.exe",
-                "Spotify",
-            },
-            "confidence": 100
-        },
-
-        "file_management": {
-            "applications": {
-                "explorer.exe",
-                "File Explorer",
-            },
-            "confidence": 85
-        },
-
-        "terminal": {
-            "applications": {
-                "powershell.exe",
-                "cmd.exe",
-                "Windows Terminal",
-                "WindowsTerminal.exe",
-            },
-            "confidence": 90
-        },
-    }
-
-
-    # ---------------------------------
-    # Friendly activity names
-    # ---------------------------------
-
-    ACTIVITY_NAMES = {
-
-        "coding":
-            "Coding",
-
-        "browsing":
-            "Browsing",
-
-        "music":
-            "Listening to Music",
-
-        "file_management":
-            "File Management",
-
-        "terminal":
-            "Using Terminal",
-    }
-
 
     def __init__(self):
 
@@ -95,50 +18,9 @@ class ActivityEngine:
         )
 
 
-    def classify(
-        self,
-        application,
-        process
-    ):
-
-        application_value = (
-            application
-            or ""
-        )
-
-        process_value = (
-            process
-            or ""
-        )
-
-
-        for rule_name, rule in (
-            self.ACTIVITY_RULES.items()
-        ):
-
-            applications = rule[
-                "applications"
-            ]
-
-
-            if (
-                application_value in applications
-                or process_value in applications
-            ):
-
-                return (
-                    self.ACTIVITY_NAMES[
-                        rule_name
-                    ],
-                    rule["confidence"]
-                )
-
-
-        return (
-            "Unknown",
-            20
-        )
-
+    # ---------------------------------
+    # DraxAgent detection
+    # ---------------------------------
 
     def is_drax_window(
         self,
@@ -157,14 +39,11 @@ class ActivityEngine:
         ).lower()
 
 
-        # ---------------------------------
-        # DraxAgent / Python itself
-        # ---------------------------------
-
         if (
             "draxagent" in application_value
             or "drax" in application_value
         ):
+
             return True
 
 
@@ -180,6 +59,10 @@ class ActivityEngine:
 
         return False
 
+
+    # ---------------------------------
+    # Window changed
+    # ---------------------------------
 
     def on_window_changed(
         self,
@@ -198,12 +81,6 @@ class ActivityEngine:
         # ---------------------------------
         # Ignore DraxAgent itself
         # ---------------------------------
-        #
-        # When DraxAgent becomes foreground,
-        # Windows reports Python as the active
-        # process. We don't want that to destroy
-        # the user's previous meaningful activity.
-        #
 
         if self.is_drax_window(
             application,
@@ -214,14 +91,56 @@ class ActivityEngine:
 
 
         # ---------------------------------
-        # Classify real user activity
+        # Build intelligence context
         # ---------------------------------
 
-        activity_name, confidence = (
-            self.classify(
-                application,
-                process
-            )
+        context_data = {
+
+            "application": application,
+
+            "process": process,
+
+            "executable": data.get(
+                "executable"
+            ),
+
+            "window_title": data.get(
+                "title"
+            ),
+
+        }
+
+
+        # ---------------------------------
+        # Ask intelligence layer
+        #
+        # Classification is asynchronous.
+        # Observer remains responsive.
+        # ---------------------------------
+
+        activity_classifier.classify_async(
+            context_data,
+            self.on_activity_classified
+        )
+
+
+    # ---------------------------------
+    # Intelligence result
+    # ---------------------------------
+
+    def on_activity_classified(
+        self,
+        result
+    ):
+
+        activity_name = result.get(
+            "activity",
+            "Unknown"
+        )
+
+        confidence = result.get(
+            "confidence",
+            20
         )
 
 
@@ -235,13 +154,29 @@ class ActivityEngine:
             [
                 context.current_window
             ],
-            application=application,
-            process=process
+            application=context.current_application,
+            process=context.current_process
         )
 
 
+        # ---------------------------------
+        # Activity history
+        # ---------------------------------
+
         activity_history.add(
             activity.name
+        )
+        
+        bus.emit(
+            "activity_updated",
+            {
+                "activity": activity.name,
+                "confidence": activity.confidence,
+                "application": activity.application,
+                "process": activity.process,
+                "window": context.current_window,
+                "started_at": activity.started_at
+            }
         )
 
 
