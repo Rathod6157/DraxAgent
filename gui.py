@@ -20,6 +20,7 @@ from PySide6.QtCore import (
     QEvent,
     QPropertyAnimation,
     QEasingCurve,
+    QParallelAnimationGroup,
 )
 
 from PySide6.QtWidgets import (
@@ -300,45 +301,72 @@ class DraxWindow(QWidget):
         # Presence animation
         # ---------------------------------
 
-        self.presence_effect = (
+        # Separate opacity effects for the dot and text.
+        # This lets the whole presence indicator fade,
+        # instead of only the dot.
+        
+        self.presence_dot_effect = (
             QGraphicsOpacityEffect(
                 self.online_dot
             )
         )
 
-        self.online_dot.setGraphicsEffect(
-            self.presence_effect
+        self.presence_text_effect = (
+            QGraphicsOpacityEffect(
+                self.online_text
+            )
         )
 
-        self.presence_animation = (
+        self.online_dot.setGraphicsEffect(
+            self.presence_dot_effect
+        )
+
+        self.online_text.setGraphicsEffect(
+            self.presence_text_effect
+        )
+
+        self.presence_dot_effect.setOpacity(
+            1.0
+        )
+
+        self.presence_text_effect.setOpacity(
+            1.0
+        )
+
+        # Current transition animation.
+        self.presence_transition = None
+
+        # Continuous breathing animation for the
+        # Online dot.
+        self.presence_pulse = (
             QPropertyAnimation(
-                self.presence_effect,
+                self.presence_dot_effect,
                 b"opacity",
                 self
             )
         )
 
-        self.presence_animation.setDuration(
+        self.presence_pulse.setDuration(
             1200
         )
 
-        self.presence_animation.setStartValue(
+        self.presence_pulse.setStartValue(
             1.0
         )
 
-        self.presence_animation.setEndValue(
-            0.30
+        self.presence_pulse.setEndValue(
+            0.35
         )
 
-        self.presence_animation.setEasingCurve(
+        self.presence_pulse.setEasingCurve(
             QEasingCurve.InOutSine
         )
 
-        self.presence_animation.setLoopCount(
+        self.presence_pulse.setLoopCount(
             -1
         )
 
-        self.presence_animation.start()
+        self.presence_pulse.start()
 
         # ---------------------------------
         # Activity Card
@@ -429,10 +457,6 @@ class DraxWindow(QWidget):
 
     def update_presence(self):
 
-        # QApplication.activeWindow() is more reliable here than
-        # relying only on WindowActivate/WindowDeactivate events.
-        # The polling timer below also catches focus changes that
-        # Windows/Qt occasionally does not deliver as expected.
         is_foreground = (
             QApplication.activeWindow() is self
             or self.isActiveWindow()
@@ -444,22 +468,173 @@ class DraxWindow(QWidget):
 
         if is_foreground:
 
-            # Already online — nothing to do.
-            if getattr(self, "_presence_state", None) == "online":
+            # Already online.
+            if self._presence_state == "online":
                 return
 
-            # Cancel a pending Away -> Online transition only if
-            # necessary. Do not recreate/reset it on every poll.
-            if not hasattr(self, "presence_delay"):
-                self.presence_delay = QTimer(self)
-                self.presence_delay.setSingleShot(True)
+            # Already waiting for the delayed
+            # Away -> Online transition.
+            if (
+                self._presence_state
+                == "transitioning"
+            ):
+                return
+
+            if not hasattr(
+                self,
+                "presence_delay"
+            ):
+
+                self.presence_delay = (
+                    QTimer(self)
+                )
+
+                self.presence_delay.setSingleShot(
+                    True
+                )
+
                 self.presence_delay.timeout.connect(
                     self.show_online_presence
                 )
 
-            if not self.presence_delay.isActive():
+            self._presence_state = (
+                "transitioning"
+            )
 
-                self._presence_state = "transitioning"
+            # Keep Away visible for a moment
+            # before starting the fade.
+            self.presence_delay.start(
+                700
+            )
+
+            return
+
+        # ---------------------------------
+        # DraxAgent is background
+        # ---------------------------------
+
+        if hasattr(
+            self,
+            "presence_delay"
+        ):
+
+            self.presence_delay.stop()
+
+        if self._presence_state != "away":
+
+            self.show_away_presence()
+
+
+    # ---------------------------------
+    # Shared fade transition
+    # ---------------------------------
+
+    def _fade_presence_to(
+        self,
+        state
+    ):
+
+        # Stop any previous transition.
+        if self.presence_transition:
+
+            self.presence_transition.stop()
+
+        # Stop the breathing pulse while
+        # transitioning.
+        self.presence_pulse.stop()
+
+        # Fade both dot and text out.
+        fade_out = (
+            QParallelAnimationGroup(
+                self
+            )
+        )
+
+        dot_out = QPropertyAnimation(
+            self.presence_dot_effect,
+            b"opacity",
+            self
+        )
+
+        text_out = QPropertyAnimation(
+            self.presence_text_effect,
+            b"opacity",
+            self
+        )
+
+        for animation in (
+            dot_out,
+            text_out
+        ):
+
+            animation.setDuration(
+                220
+            )
+
+            animation.setEasingCurve(
+                QEasingCurve.InOutSine
+            )
+
+        dot_out.setStartValue(
+            self.presence_dot_effect.opacity()
+        )
+
+        dot_out.setEndValue(
+            0.0
+        )
+
+        text_out.setStartValue(
+            self.presence_text_effect.opacity()
+        )
+
+        text_out.setEndValue(
+            0.0
+        )
+
+        fade_out.addAnimation(
+            dot_out
+        )
+
+        fade_out.addAnimation(
+            text_out
+        )
+
+        self.presence_transition = (
+            fade_out
+        )
+
+        def apply_new_state():
+
+            if state == "online":
+
+                self._presence_state = (
+                    "online"
+                )
+
+                self.online_text.setText(
+                    "Online"
+                )
+
+                self.online_dot.setStyleSheet(
+                    """
+                    color:#49D17D;
+                    font-size:11px;
+                    """
+                )
+
+                self.online_text.setStyleSheet(
+                    """
+                    color:#49D17D;
+                    font-size:13px;
+                    font-weight:600;
+                    """
+                )
+
+            else:
+
+                self._presence_state = (
+                    "away"
+                )
 
                 self.online_text.setText(
                     "Away"
@@ -480,86 +655,134 @@ class DraxWindow(QWidget):
                     """
                 )
 
-                self.presence_animation.stop()
-                self.presence_effect.setOpacity(0.55)
+            # Fade both back in.
+            fade_in = (
+                QParallelAnimationGroup(
+                    self
+                )
+            )
 
-                # Keep Away visible briefly when Drax gets focus,
-                # then smoothly return to Online.
-                self.presence_delay.start(700)
+            dot_in = QPropertyAnimation(
+                self.presence_dot_effect,
+                b"opacity",
+                self
+            )
 
-            return
+            text_in = QPropertyAnimation(
+                self.presence_text_effect,
+                b"opacity",
+                self
+            )
 
-        # ---------------------------------
-        # DraxAgent is background
-        # ---------------------------------
+            for animation in (
+                dot_in,
+                text_in
+            ):
 
-        if hasattr(self, "presence_delay"):
-            self.presence_delay.stop()
+                animation.setDuration(
+                    320
+                )
 
-        if getattr(self, "_presence_state", None) != "away":
-            self.show_away_presence()
+                animation.setEasingCurve(
+                    QEasingCurve.InOutSine
+                )
 
+            dot_in.setStartValue(
+                0.0
+            )
+
+            dot_in.setEndValue(
+                1.0
+            )
+
+            text_in.setStartValue(
+                0.0
+            )
+
+            text_in.setEndValue(
+                1.0
+            )
+
+            fade_in.addAnimation(
+                dot_in
+            )
+
+            fade_in.addAnimation(
+                text_in
+            )
+
+            self.presence_transition = (
+                fade_in
+            )
+
+            def transition_finished():
+
+                # Only Online gets the breathing pulse.
+                if (
+                    self._presence_state
+                    == "online"
+                ):
+
+                    self.presence_pulse.start()
+
+            fade_in.finished.connect(
+                transition_finished
+            )
+
+            fade_in.start()
+
+        fade_out.finished.connect(
+            apply_new_state
+        )
+
+        fade_out.start()
+
+
+    # ---------------------------------
+    # Away
+    # ---------------------------------
 
     def show_away_presence(self):
 
-        self._presence_state = "away"
+        # Don't interrupt an existing Away state.
+        if self._presence_state == "away":
+            return
 
-        self.online_text.setText(
-            "Away"
+        self._fade_presence_to(
+            "away"
         )
 
-        self.online_dot.setStyleSheet(
-            """
-            color:#6B7280;
-            font-size:11px;
-            """
-        )
 
-        self.online_text.setStyleSheet(
-            """
-            color:#8B93A1;
-            font-size:13px;
-            font-weight:600;
-            """
-        )
-
-        self.presence_animation.stop()
-        self.presence_effect.setOpacity(0.55)
-
+    # ---------------------------------
+    # Online
+    # ---------------------------------
 
     def show_online_presence(self):
 
         # Make sure Drax is STILL foreground.
-        # Prevent stale delayed timers from switching us to Online.
-        if not (
+        is_foreground = (
             QApplication.activeWindow() is self
             or self.isActiveWindow()
-        ):
+        )
+
+        if not is_foreground:
+
+            self._presence_state = (
+                "transitioning"
+            )
+
             self.show_away_presence()
+
             return
 
-        self._presence_state = "online"
-
-        self.online_text.setText(
-            "Online"
+        self._fade_presence_to(
+            "online"
         )
 
-        self.online_dot.setStyleSheet(
-            """
-            color:#49D17D;
-            font-size:11px;
-            """
-        )
 
-        self.online_text.setStyleSheet(
-            """
-            color:#49D17D;
-            font-size:13px;
-            font-weight:600;
-            """
-        )
-
-        self.presence_animation.start()
+    # ---------------------------------
+    # Window activation
+    # ---------------------------------
 
     def changeEvent(
         self,
@@ -576,7 +799,6 @@ class DraxWindow(QWidget):
         super().changeEvent(
             event
         )
-
     # =================================
     # ACTIVITY
     # =================================
