@@ -9,12 +9,13 @@ from terminal import (
 )
 
 from resolver import decide_application
+from brain.execution_result import ExecutionResult
 
 
 NAME = "Open Application"
-INTENT = "open"
+INTENT = "open_app"
 DESCRIPTION = "Launches desktop applications."
-VERSION = "1.2"
+VERSION = "1.4"
 AUTHOR = "Harshith"
 
 
@@ -32,9 +33,6 @@ def launch_application(match):
 
         if source == "start_menu":
 
-            # Windows handles .lnk shortcuts,
-            # Start Menu entries and registered
-            # file/application associations properly.
             os.startfile(
                 launch_target
             )
@@ -62,7 +60,10 @@ def launch_application(match):
                 f"❌ Unknown application source: '{source}'."
             )
 
-            return False
+            return ExecutionResult(
+                handled=True,
+                success=False
+            )
 
         # ---------------------------------
         # Report success
@@ -76,7 +77,10 @@ def launch_application(match):
             f"{app_name.title()} opened."
         )
 
-        return True
+        return ExecutionResult(
+            handled=True,
+            success=True
+        )
 
     except Exception as error:
 
@@ -85,7 +89,10 @@ def launch_application(match):
             f"Reason: {error}"
         )
 
-        return False
+        return ExecutionResult(
+            handled=True,
+            success=False
+        )
 
 
 def handle_pending_response(
@@ -137,7 +144,7 @@ def handle_pending_response(
     status = pending["status"]
 
     # ---------------------------------
-    # Confirmation
+    # Normal application confirmation
     # ---------------------------------
 
     if status == "confirmation_required":
@@ -165,7 +172,37 @@ def handle_pending_response(
         return pending
 
     # ---------------------------------
-    # Selection
+    # Web fallback confirmation
+    # ---------------------------------
+
+    if status == "web_fallback_confirmation_required":
+
+        if response in yes_words:
+
+            from skills.open_web import execute as open_web
+
+            task = pending["task"]
+
+            return open_web(
+                task
+            )
+
+        if response in no_words:
+
+            safe_print(
+                "👍 Okay, operation cancelled."
+            )
+
+            return None
+
+        safe_print(
+            "🤖 Please answer yes or no."
+        )
+
+        return pending
+
+    # ---------------------------------
+    # Application selection
     # ---------------------------------
 
     if status == "selection_required":
@@ -189,7 +226,7 @@ def handle_pending_response(
             if choice == cancel_number:
 
                 safe_print(
-                    "👍 Okay, operation cancelled."
+                    "👍 Operation cancelled."
                 )
 
                 return None
@@ -206,17 +243,25 @@ def handle_pending_response(
 
 def execute(task):
 
-    query = task.data.get(
-        "target"
-    )
+    data = task.data or {}
+
+    query = (
+        data.get("target")
+        or task.target
+        or ""
+    ).strip()
 
     if not query:
 
-        safe_print(
-            "❌ No application specified."
+        return ExecutionResult(
+            handled=True,
+            success=False,
+            message="❌ No application specified."
         )
 
-        return
+    # ---------------------------------
+    # Resolve installed application
+    # ---------------------------------
 
     decision = decide_application(
         query
@@ -225,19 +270,18 @@ def execute(task):
     status = decision["status"]
 
     # ---------------------------------
-    # Resolved
+    # Application found confidently
     # ---------------------------------
 
     if status == "resolved":
 
-        launch_application(
+        return launch_application(
             decision["match"]
         )
 
-        return
-
     # ---------------------------------
-    # Confirmation required
+    # Application found, but confirmation
+    # is required.
     # ---------------------------------
 
     if status == "confirm":
@@ -255,7 +299,7 @@ def execute(task):
         }
 
     # ---------------------------------
-    # Ambiguous
+    # Multiple possible applications
     # ---------------------------------
 
     if status == "ambiguous":
@@ -298,14 +342,39 @@ def execute(task):
         }
 
     # ---------------------------------
-    # Not found
+    # Application NOT found
+    #
+    # IMPORTANT:
+    # Never silently turn an app request
+    # into a web request.
     # ---------------------------------
 
-    safe_print(
-        f"❌ I couldn't find an application "
-        f"matching '{query}'."
-    )
+    if status == "not_found":
 
-    return {
-        "status": "not_found"
-    }
+        safe_print(
+            f"🔎 I couldn't find an installed "
+            f"application named '{query}'."
+        )
+
+        safe_print(
+            f"🌐 Do you want me to open "
+            f"'{query}' on the web instead? (yes/no)"
+        )
+
+        return {
+            "status": "web_fallback_confirmation_required",
+            "task": task
+        }
+
+    # ---------------------------------
+    # Unexpected resolver status
+    # ---------------------------------
+
+    return ExecutionResult(
+        handled=True,
+        success=False,
+        message=(
+            f"❌ Couldn't determine how to open "
+            f"'{query}'."
+        )
+    )

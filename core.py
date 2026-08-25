@@ -24,6 +24,12 @@ from parser import (
 )
 
 
+
+from brain.ai.intent_router import intent_router
+
+from open_target_resolver import resolve_open_target
+
+
 def _split_compound(command: str):
 
     parts = re.split(
@@ -137,6 +143,7 @@ def _understand_single(command: str) -> Task:
             }
         )
 
+
     # -----------------------
     # Conversation
     # -----------------------
@@ -149,6 +156,231 @@ def _understand_single(command: str) -> Task:
         }
     )
 
+def understand_with_ai(
+    command: str,
+    recent_conversation=None
+) -> Task:
+
+    plan = intent_router.route(
+        command,
+        recent_conversation
+    )
+
+    actions = plan.get(
+        "actions",
+        []
+    )
+
+    conversation = plan.get(
+        "conversation"
+    )
+
+    # ---------------------------------
+    # Pure conversation
+    # ---------------------------------
+
+    if not actions:
+
+        return Task(
+            intent="conversation",
+            data={
+                "raw_command": command,
+                "conversation": conversation,
+                "ai_plan": plan
+            }
+        )
+
+    # ---------------------------------
+    # Build child action tasks
+    # ---------------------------------
+
+    child_tasks = []
+
+    for action in actions:
+
+        child_tasks.append(
+            Task(
+                intent=action["intent"],
+                target=action.get("target"),
+                confidence=1.0,
+                data={
+                    "raw_command": command,
+                    "target": action.get("target"),
+                    "browser": action.get(
+                        "browser"
+                    ),
+                    "conversation": None
+                }
+            )
+        )
+
+    # ---------------------------------
+    # Preserve conversation/question
+    # ---------------------------------
+
+    if conversation:
+
+        child_tasks.append(
+            Task(
+                intent="conversation",
+                confidence=1.0,
+                data={
+                    "raw_command": conversation,
+                    "conversation": conversation
+                }
+            )
+        )
+
+    # ---------------------------------
+    # One action and NO conversation
+    # → normal single task
+    # ---------------------------------
+
+    if (
+        len(actions) == 1
+        and not conversation
+    ):
+
+        action = actions[0]
+        
+        # ---------------------------------
+        # Smart open resolution
+        # ---------------------------------
+
+        if action.get("intent") in {
+            "open_app",
+            "open_web"
+        }:
+
+            target = action.get(
+                "target"
+            )
+
+            open_decision = resolve_open_target(
+                target,
+                action["intent"]
+            )
+
+            # ---------------------------------
+            # Strong local application
+            # ---------------------------------
+
+            if open_decision["status"] == "app":
+
+                return Task(
+                    intent="open_app",
+                    target=target,
+                    confidence=1.0,
+                    data={
+                        "raw_command": command,
+                        "target": target,
+                        "browser": None,
+                        "conversation": conversation,
+                        "ai_plan": plan,
+                        "open_resolution": open_decision
+                    }
+                )
+
+            # ---------------------------------
+            # AI said app, but no local app.
+            # Use web.
+            # ---------------------------------
+
+            if open_decision["status"] == "web_fallback":
+
+                return Task(
+                    intent="open_web",
+                    target=target,
+                    confidence=1.0,
+                    data={
+                        "raw_command": command,
+                        "target": target,
+                        "destination": target,
+                        "browser": action.get(
+                            "browser",
+                            "default"
+                        ),
+                        "conversation": conversation,
+                        "ai_plan": plan,
+                        "open_resolution": open_decision
+                    }
+                )
+
+            # ---------------------------------
+            # Website with matching local app.
+            # Ask user.
+            # ---------------------------------
+
+            if open_decision["status"] == "app_or_web":
+
+                # If the user explicitly asked for the website,
+                # trust the AI's open_web decision.
+                if action["intent"] == "open_web":
+
+                    return Task(
+                        intent="open_web",
+                        target=target,
+                        confidence=1.0,
+                        data={
+                            "raw_command": command,
+                            "target": target,
+                            "destination": target,
+                            "browser": action.get(
+                                "browser",
+                                "default"
+                            ),
+                            "conversation": conversation,
+                            "ai_plan": plan,
+                            "open_resolution": open_decision
+                        }
+                    )
+
+                # Otherwise, the user asked to open the application.
+                return Task(
+                    intent="open_app",
+                    target=target,
+                    confidence=1.0,
+                    data={
+                        "raw_command": command,
+                        "target": target,
+                        "browser": None,
+                        "conversation": conversation,
+                        "ai_plan": plan,
+                        "open_resolution": open_decision,
+                        "requires_open_choice": True
+                    }
+                )
+        return Task(
+            intent=action["intent"],
+            target=action.get("target"),
+            confidence=1.0,
+            data={
+                "raw_command": command,
+                "target": action.get("target"),
+                "browser": action.get(
+                    "browser"
+                ),
+                "conversation": None,
+                "ai_plan": plan
+            }
+        )
+
+    # ---------------------------------
+    # Multiple actions OR
+    # action + conversation
+    # → compound
+    # ---------------------------------
+
+    return Task(
+        intent="compound",
+        confidence=1.0,
+        data={
+            "raw_command": command,
+            "tasks": child_tasks,
+            "conversation": conversation,
+            "ai_plan": plan
+        }
+    )
 
 def understand(command: str) -> Task:
 
@@ -165,53 +397,89 @@ def understand(command: str) -> Task:
         )
 
     # -----------------------------------------
-    # Try compound command
+    # AI-FIRST UNDERSTANDING
     # -----------------------------------------
 
-    parts = _split_compound(command)
+    try:
 
-    if len(parts) <= 1:
-
-        return _understand_single(
+        ai_task = understand_with_ai(
             command
         )
 
-    tasks = [
-        _understand_single(part)
-        for part in parts
-    ]
+        # If the AI successfully produced
+        # an actionable intent, trust it.
+        if ai_task.intent not in {
+            "conversation"
+        }:
+
+            return ai_task
+
+        # AI explicitly classified this as
+        # conversation.
+        #
+        # This is important because we do NOT
+        # want the old parser accidentally turning
+        # normal conversation into a command.
+        if (
+            ai_task.data
+            and ai_task.data.get("ai_plan")
+        ):
+
+            return ai_task
+
+    except Exception as error:
+
+        print(
+            f"⚠️ AI understanding failed: {error}"
+        )
 
     # -----------------------------------------
-    # Only call something "compound" if it
-    # actually contains an executable action.
+    # LEGACY FALLBACK
     # -----------------------------------------
 
-    actionable_tasks = [
-        task
-        for task in tasks
-        if task.intent not in (
-            "conversation",
-            "greeting"
-        )
-    ]
-
-    if not actionable_tasks:
-
-        # It was probably just normal
-        # conversational language containing "and".
-        return _understand_single(
-            command
-        )
-
-    return Task(
-        intent="compound",
-        confidence=min(
-            task.confidence
-            for task in tasks
-        ),
-        data={
-            "raw_command": command,
-            "parts": parts,
-            "tasks": tasks
-        }
+    return _understand_single(
+        command
     )
+    
+
+if __name__ == "__main__":
+
+    tests = [
+        "Hey bro, what's up?",
+        "I'm tired.",
+        "Open Chrome",
+        "Open YouTube",
+        "Open YouTube in Chrome",
+        "Close Spotify",
+        "Set a timer for 10 minutes",
+        "Open Chrome and open YouTube",
+        "Open YouTube and who is the best Bedwars player?",
+        "Open Spotify",
+        "Open Discord",
+        "Open Whatsapp",
+        "Open Spotify Website",
+        "Open Spotify in browser"
+    ]
+
+    for test in tests:
+
+        print("\nUSER:", test)
+
+        task = understand(
+            test
+        )
+
+        print(
+            "INTENT:",
+            task.intent
+        )
+
+        print(
+            "TARGET:",
+            task.target
+        )
+
+        print(
+            "DATA:",
+            task.data
+        )

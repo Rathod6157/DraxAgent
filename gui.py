@@ -64,24 +64,35 @@ class Worker(QObject):
 
     def run(self):
 
-        response = drax.chat(
-            self.command
-        )
+        try:
 
-        if isinstance(
-            response,
-            str
-        ):
+            response = drax.chat(
+                self.command
+            )
 
-            response = response.strip()
+            if isinstance(response, str):
 
-            if response:
+                response = response.strip()
 
+                if response:
+                    self.response_ready.emit(
+                        response
+                    )
+
+            else:
                 self.response_ready.emit(
-                    response
+                    "Done."
                 )
 
-        self.finished.emit()
+        except Exception as error:
+
+            self.response_ready.emit(
+                f"Something went wrong: {error}"
+            )
+
+        finally:
+
+            self.finished.emit()
 
 
 class DraxWindow(QWidget):
@@ -901,10 +912,6 @@ class DraxWindow(QWidget):
 
         self.thread.start()
 
-        bus.emit(
-            "message",
-            command
-        )
 
     # =================================
     # OUTPUT
