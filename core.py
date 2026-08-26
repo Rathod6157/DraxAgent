@@ -23,10 +23,7 @@ from parser import (
     TIMER_MANAGEMENT_WORDS
 )
 
-
-
 from brain.ai.intent_router import intent_router
-
 from open_target_resolver import resolve_open_target
 
 
@@ -51,9 +48,13 @@ def _understand_single(command: str) -> Task:
 
     command_lower = command.lower()
 
-    words = tokenize(command_lower)
+    words = tokenize(
+        command_lower
+    )
 
-    words = normalize_words(words)
+    words = normalize_words(
+        words
+    )
 
     words = clean_words(
         words,
@@ -80,7 +81,9 @@ def _understand_single(command: str) -> Task:
         for word in words
     ]
 
-    parsed = parse(words)
+    parsed = parse(
+        words
+    )
 
     # -----------------------
     # Greeting
@@ -126,7 +129,9 @@ def _understand_single(command: str) -> Task:
 
     if parsed["action"]:
 
-        target = parsed.get("target")
+        target = parsed.get(
+            "target"
+        )
 
         if parsed["action"] == "timer":
 
@@ -143,7 +148,6 @@ def _understand_single(command: str) -> Task:
             }
         )
 
-
     # -----------------------
     # Conversation
     # -----------------------
@@ -155,6 +159,7 @@ def _understand_single(command: str) -> Task:
             "words": words
         }
     )
+
 
 def understand_with_ai(
     command: str,
@@ -198,19 +203,26 @@ def understand_with_ai(
 
     for action in actions:
 
+        # Pass every field produced by the AI router
+        # through to the skill.
+        #
+        # Core should NOT need to know about
+        # engine, browser, Reddit, YouTube, etc.
+        # This keeps the system scalable.
+
+        task_data = dict(action)
+
+        # Core-level context
+        task_data["raw_command"] = command
+        task_data["target"] = action.get("target")
+        task_data["conversation"] = None
+
         child_tasks.append(
             Task(
                 intent=action["intent"],
                 target=action.get("target"),
                 confidence=1.0,
-                data={
-                    "raw_command": command,
-                    "target": action.get("target"),
-                    "browser": action.get(
-                        "browser"
-                    ),
-                    "conversation": None
-                }
+                data=task_data
             )
         )
 
@@ -242,7 +254,7 @@ def understand_with_ai(
     ):
 
         action = actions[0]
-        
+
         # ---------------------------------
         # Smart open resolution
         # ---------------------------------
@@ -313,29 +325,6 @@ def understand_with_ai(
 
             if open_decision["status"] == "app_or_web":
 
-                # If the user explicitly asked for the website,
-                # trust the AI's open_web decision.
-                if action["intent"] == "open_web":
-
-                    return Task(
-                        intent="open_web",
-                        target=target,
-                        confidence=1.0,
-                        data={
-                            "raw_command": command,
-                            "target": target,
-                            "destination": target,
-                            "browser": action.get(
-                                "browser",
-                                "default"
-                            ),
-                            "conversation": conversation,
-                            "ai_plan": plan,
-                            "open_resolution": open_decision
-                        }
-                    )
-
-                # Otherwise, the user asked to open the application.
                 return Task(
                     intent="open_app",
                     target=target,
@@ -350,19 +339,26 @@ def understand_with_ai(
                         "requires_open_choice": True
                     }
                 )
+
+        # ---------------------------------
+        # Normal single action
+        # ---------------------------------
+
+        # Preserve every field produced by the router.
+        # Do not hardcode skill-specific parameters here.
+
+        task_data = dict(action)
+
+        task_data["raw_command"] = command
+        task_data["target"] = action.get("target")
+        task_data["conversation"] = None
+        task_data["ai_plan"] = plan
+
         return Task(
             intent=action["intent"],
             target=action.get("target"),
             confidence=1.0,
-            data={
-                "raw_command": command,
-                "target": action.get("target"),
-                "browser": action.get(
-                    "browser"
-                ),
-                "conversation": None,
-                "ai_plan": plan
-            }
+            data=task_data
         )
 
     # ---------------------------------
@@ -382,7 +378,10 @@ def understand_with_ai(
         }
     )
 
-def understand(command: str) -> Task:
+
+def understand(
+    command: str
+) -> Task:
 
     command = command.strip()
 
@@ -408,6 +407,7 @@ def understand(command: str) -> Task:
 
         # If the AI successfully produced
         # an actionable intent, trust it.
+
         if ai_task.intent not in {
             "conversation"
         }:
@@ -420,9 +420,12 @@ def understand(command: str) -> Task:
         # This is important because we do NOT
         # want the old parser accidentally turning
         # normal conversation into a command.
+
         if (
             ai_task.data
-            and ai_task.data.get("ai_plan")
+            and ai_task.data.get(
+                "ai_plan"
+            )
         ):
 
             return ai_task
@@ -440,7 +443,7 @@ def understand(command: str) -> Task:
     return _understand_single(
         command
     )
-    
+
 
 if __name__ == "__main__":
 
@@ -450,20 +453,23 @@ if __name__ == "__main__":
         "Open Chrome",
         "Open YouTube",
         "Open YouTube in Chrome",
+        "Search YouTube for Minecraft tutorials",
+        "Search Google for Minecraft tutorials",
+        "Search Bing for Python decorators",
+        "Search DuckDuckGo for Linux tutorials",
+        "Search the web for Minecraft Bedwars",
         "Close Spotify",
         "Set a timer for 10 minutes",
         "Open Chrome and open YouTube",
-        "Open YouTube and who is the best Bedwars player?",
-        "Open Spotify",
-        "Open Discord",
-        "Open Whatsapp",
-        "Open Spotify Website",
-        "Open Spotify in browser"
+        "Open YouTube and who is the best Bedwars player?"
     ]
 
     for test in tests:
 
-        print("\nUSER:", test)
+        print(
+            "\nUSER:",
+            test
+        )
 
         task = understand(
             test
