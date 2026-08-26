@@ -11,6 +11,9 @@ from brain.execution_result import (
     ExecutionResult
 )
 
+from web_resolver import (
+    resolve_web_destination
+)
 
 NAME = "Open Web"
 INTENT = "open_web"
@@ -221,36 +224,21 @@ def execute(task):
 
 
     # ---------------------------------
-    # Build URL
+    # Resolve destination into URL
     # ---------------------------------
 
-    try:
+    url = resolve_web_destination(
+        destination
+    )
 
-        url = build_url(
-            destination
-        )
-
-    except Exception as error:
-
-        error_print(
-            f"❌ Couldn't resolve "
-            f"'{destination}'.\n"
-            f"Reason: {error}"
-        )
-
-        return ExecutionResult(
-            handled=True,
-            success=False
-        )
-
-
-    if not url:
+    if url is None:
 
         return ExecutionResult(
             handled=True,
             success=False,
             message=(
-                "❌ No web destination specified."
+                f"❌ I couldn't find a direct "
+                f"website for '{destination}'."
             )
         )
 
