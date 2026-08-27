@@ -10,45 +10,85 @@ DESCRIPTION = (
 )
 
 
-# General search engines
 SEARCH_ENGINES = {
-    "google": "https://www.google.com/search?q={}",
-    "bing": "https://www.bing.com/search?q={}",
-    "duckduckgo": "https://duckduckgo.com/?q={}",
+    "google": (
+        "https://www.google.com/search?q={}"
+    ),
+
+    "bing": (
+        "https://www.bing.com/search?q={}"
+    ),
+
+    "duckduckgo": (
+        "https://duckduckgo.com/?q={}"
+    ),
 }
 
 
-# Site-specific search destinations
-SEARCH_SITES = {
-    "youtube": (
-        "https://www.youtube.com/results?search_query={}"
-    ),
+# ============================================================
+# Website-native search
+# ============================================================
 
-    "reddit": (
+SITE_SEARCH = {
+
+    "reddit.com": (
         "https://www.reddit.com/search/?q={}"
     ),
 
-    "github": (
+    "github.com": (
         "https://github.com/search?q={}"
     ),
 
-    "stackoverflow": (
-        "https://stackoverflow.com/search?q={}"
+    "youtube.com": (
+        "https://www.youtube.com/results?search_query={}"
     ),
 
-    "wikipedia": (
+    "wikipedia.org": (
         "https://en.wikipedia.org/w/index.php?search={}"
     ),
 
-    "amazon": (
-        "https://www.amazon.com/s?k={}"
-    ),
-
-    "quora": (
-        "https://www.quora.com/search?q={}"
-    ),
 }
 
+
+# ============================================================
+# Clean website/domain
+# ============================================================
+
+def _clean_site(site):
+
+    if not site:
+        return None
+
+    site = str(site).strip().lower()
+
+    if not site:
+        return None
+
+    site = site.replace(
+        "https://",
+        ""
+    )
+
+    site = site.replace(
+        "http://",
+        ""
+    )
+
+    site = site.split(
+        "/",
+        1
+    )[0]
+
+    site = site.removeprefix(
+        "www."
+    )
+
+    return site or None
+
+
+# ============================================================
+# Build search URL
+# ============================================================
 
 def _build_url(
     query,
@@ -56,30 +96,75 @@ def _build_url(
     site=None
 ):
 
-    encoded_query = quote_plus(
+    query = (
         query
-    )
-
-    site = (
-        site
         or ""
-    ).lower().strip()
+    ).strip()
 
     engine = (
         engine
         or "google"
-    ).lower().strip()
+    ).strip().lower()
 
-    # Site-specific search has priority.
-    if site in SEARCH_SITES:
+    site = _clean_site(
+        site
+    )
 
-        return SEARCH_SITES[
+    if not query:
+        return None
+
+
+    # --------------------------------------------------------
+    # Website-native search
+    #
+    # Example:
+    #
+    # Search Reddit for Minecraft
+    #
+    # becomes:
+    #
+    # https://www.reddit.com/search/?q=Minecraft
+    #
+    # instead of:
+    #
+    # Google -> site:reddit.com Minecraft
+    # --------------------------------------------------------
+
+    if site:
+
+        native_template = SITE_SEARCH.get(
             site
-        ].format(
-            encoded_query
         )
 
-    # Otherwise use the requested general search engine.
+        if native_template:
+
+            return native_template.format(
+                quote_plus(query)
+            )
+
+
+        # ----------------------------------------------------
+        # Unknown website
+        #
+        # We don't know its native search URL,
+        # so Google site-search is the safe fallback.
+        # ----------------------------------------------------
+
+        search_query = (
+            f"site:{site} {query}"
+        )
+
+        encoded_query = quote_plus(
+            search_query
+        )
+
+    else:
+
+        encoded_query = quote_plus(
+            query
+        )
+
+
     template = SEARCH_ENGINES.get(
         engine,
         SEARCH_ENGINES["google"]
@@ -90,15 +175,24 @@ def _build_url(
     )
 
 
+# ============================================================
+# Open browser
+# ============================================================
+
 def _open_browser(
     url,
-    browser
+    browser="default"
 ):
 
     browser = (
         browser
         or "default"
     ).strip().lower()
+
+
+    # --------------------------------------------------------
+    # Default browser
+    # --------------------------------------------------------
 
     if browser == "default":
 
@@ -107,6 +201,11 @@ def _open_browser(
         )
 
         return
+
+
+    # --------------------------------------------------------
+    # Explicit browser
+    # --------------------------------------------------------
 
     browser_map = {
 
@@ -124,11 +223,14 @@ def _open_browser(
             "C:/Program Files/Mozilla Firefox/"
             "firefox.exe"
         ),
+
     }
+
 
     executable = browser_map.get(
         browser
     )
+
 
     if executable:
 
@@ -144,36 +246,35 @@ def _open_browser(
 
         return
 
-    # Unknown browser -> system default.
+
+    # Unknown browser:
+    # Fall back to system default.
+
     webbrowser.open(
         url
     )
 
 
+# ============================================================
+# Execute
+# ============================================================
+
 def execute(task):
 
     data = task.data or {}
 
+
+    # --------------------------------------------------------
+    # Query
+    # --------------------------------------------------------
+
     query = (
         data.get("query")
+        or data.get("target")
         or task.target
         or ""
     ).strip()
 
-    engine = (
-        data.get("engine")
-        or "google"
-    ).strip().lower()
-
-    site = (
-        data.get("site")
-        or ""
-    ).strip().lower()
-
-    browser = (
-        data.get("browser")
-        or "default"
-    ).strip()
 
     if not query:
 
@@ -181,11 +282,59 @@ def execute(task):
             "What should I search for?"
         )
 
+
+    # --------------------------------------------------------
+    # Search engine
+    # --------------------------------------------------------
+
+    engine = (
+        data.get("engine")
+        or "google"
+    ).strip().lower()
+
+
+    # --------------------------------------------------------
+    # Website
+    # --------------------------------------------------------
+
+    site = (
+        data.get("site")
+        or data.get("site_domain")
+        or ""
+    ).strip()
+
+
+    # --------------------------------------------------------
+    # Browser
+    # --------------------------------------------------------
+
+    browser = (
+        data.get("browser")
+        or "default"
+    ).strip()
+
+
+    # --------------------------------------------------------
+    # Build URL
+    # --------------------------------------------------------
+
     url = _build_url(
         query=query,
         engine=engine,
         site=site
     )
+
+
+    if not url:
+
+        return (
+            "What should I search for?"
+        )
+
+
+    # --------------------------------------------------------
+    # Open
+    # --------------------------------------------------------
 
     try:
 
@@ -194,21 +343,32 @@ def execute(task):
             browser
         )
 
-        if site:
-
-            return (
-                f'Searching {site.title()} '
-                f'for "{query}".'
-            )
-
-        return (
-            f'Searching {engine.title()} '
-            f'for "{query}".'
-        )
-
     except Exception as error:
 
         return (
             "Couldn't perform web search. "
             f"Reason: {error}"
         )
+
+
+    # --------------------------------------------------------
+    # Response
+    # --------------------------------------------------------
+
+    clean_site = _clean_site(
+        site
+    )
+
+
+    if clean_site:
+
+        return (
+            f'Searching {clean_site} '
+            f'for "{query}".'
+        )
+
+
+    return (
+        f'Searching {engine.title()} '
+        f'for "{query}".'
+    )

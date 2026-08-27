@@ -203,26 +203,43 @@ def understand_with_ai(
 
     for action in actions:
 
-        # Pass every field produced by the AI router
-        # through to the skill.
-        #
-        # Core should NOT need to know about
-        # engine, browser, Reddit, YouTube, etc.
-        # This keeps the system scalable.
-
-        task_data = dict(action)
-
-        # Core-level context
-        task_data["raw_command"] = command
-        task_data["target"] = action.get("target")
-        task_data["conversation"] = None
-
         child_tasks.append(
             Task(
                 intent=action["intent"],
                 target=action.get("target"),
                 confidence=1.0,
-                data=task_data
+                data={
+                    "raw_command": command,
+
+                    "target": action.get(
+                        "target"
+                    ),
+
+                    "browser": action.get(
+                        "browser",
+                        "default"
+                    ),
+
+                    # IMPORTANT:
+                    # Preserve search engine.
+                    "engine": action.get(
+                        "engine",
+                        "google"
+                    ),
+
+                    # IMPORTANT:
+                    # Preserve website restriction.
+                    "site": action.get(
+                        "site"
+                    ),
+
+                    # Compatibility with older code.
+                    "site_domain": action.get(
+                        "site"
+                    ),
+
+                    "conversation": None
+                }
             )
         )
 
@@ -358,7 +375,40 @@ def understand_with_ai(
             intent=action["intent"],
             target=action.get("target"),
             confidence=1.0,
-            data=task_data
+            data={
+                "raw_command": command,
+
+                "target": action.get(
+                    "target"
+                ),
+
+                "browser": action.get(
+                    "browser",
+                    "default"
+                ),
+
+                # IMPORTANT:
+                # Preserve search engine.
+                "engine": action.get(
+                    "engine",
+                    "google"
+                ),
+
+                # IMPORTANT:
+                # Preserve website restriction.
+                "site": action.get(
+                    "site"
+                ),
+
+                # Compatibility.
+                "site_domain": action.get(
+                    "site"
+                ),
+
+                "conversation": None,
+
+                "ai_plan": plan
+            }
         )
 
     # ---------------------------------

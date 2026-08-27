@@ -26,23 +26,6 @@ class IntentRouter:
         "duckduckgo",
     }
 
-    SEARCH_SITES = {
-        "youtube",
-        "reddit",
-        "github",
-        "stackoverflow",
-        "wikipedia",
-        "amazon",
-        "quora",
-    }
-
-    BROWSERS = {
-        "default",
-        "chrome",
-        "edge",
-        "firefox",
-    }
-
     def route(
         self,
         message,
@@ -83,197 +66,246 @@ Available intents:
 - app_status
 - compound
 
-SEARCH MODEL:
-
-For search_web, distinguish between:
-
-1. engine
-   The general search engine.
-
-   Allowed:
-   - google
-   - bing
-   - duckduckgo
-
-2. site
-   A specific website the user wants to search.
-
-   Examples:
-   - youtube
-   - reddit
-   - github
-   - stackoverflow
-   - wikipedia
-   - amazon
-   - quora
-
-   site may also be null.
-
-3. browser
-   The desktop browser in which the search should open.
-
-   Allowed:
-   - default
-   - chrome
-   - edge
-   - firefox
-
-IMPORTANT:
-
-A website such as YouTube is NOT a browser.
-
-A website such as YouTube or Reddit is also not
-necessarily the general search engine.
-
-Treat it as a search destination/site.
-
-Examples:
-
-"Search YouTube for Minecraft tutorials"
-
--> search_web
--> target="Minecraft tutorials"
--> site="youtube"
--> engine="google"
--> browser="default"
-
-"Search YouTube for Minecraft tutorials in Chrome"
-
--> search_web
--> target="Minecraft tutorials"
--> site="youtube"
--> engine="google"
--> browser="chrome"
-
-"Search Reddit for Minecraft Bedwars strategies"
-
--> search_web
--> target="Minecraft Bedwars strategies"
--> site="reddit"
--> engine="google"
--> browser="default"
-
-"Search GitHub for Python Discord bots"
-
--> search_web
--> target="Python Discord bots"
--> site="github"
--> engine="google"
--> browser="default"
-
-"Search the web for Minecraft Bedwars strategies"
-
--> search_web
--> target="Minecraft Bedwars strategies"
--> site=null
--> engine="google"
--> browser="default"
-
-"Google Python decorators"
-
--> search_web
--> target="Python decorators"
--> site=null
--> engine="google"
--> browser="default"
-
-"Search Bing for Python decorators"
-
--> search_web
--> target="Python decorators"
--> site=null
--> engine="bing"
--> browser="default"
-
-"Search DuckDuckGo for Python decorators"
-
--> search_web
--> target="Python decorators"
--> site=null
--> engine="duckduckgo"
--> browser="default"
-
-"Open YouTube"
-
--> open_web
--> target="YouTube"
-
-"Open Chrome"
-
--> open_app
--> target="Chrome"
-
-"Open YouTube in Chrome"
-
--> open_web
--> target="YouTube"
--> browser="chrome"
-
-"Open Chrome and search YouTube for Minecraft tutorials"
-
--> compound
 
 GENERAL RULES:
 
 1. Normal conversation must ALWAYS be "conversation".
 
-2. A conversational sentence containing words that happen
-   to resemble an action must NOT become a skill.
-
-3. Only classify something as an executable intent when
+2. Only classify something as an executable intent when
    the user is actually asking Drax to perform an action.
 
-4. When the user explicitly refers to a known desktop
-   application, classify it as open_app.
+3. Do not invent targets.
 
-5. When the user explicitly refers to a website or web
-   destination, classify it as open_web.
+4. If the user explicitly refers to a desktop application,
+   use open_app.
 
-6. If the destination could reasonably refer to either a
-   desktop application or website, make the best semantic
-   guess based on wording.
+5. If the user explicitly refers to a website or web destination,
+   use open_web.
 
-7. Do NOT invent targets.
+6. "Open Chrome" means:
 
-8. Searching and opening are different.
+   open_app
+   target="Chrome"
 
-9. For search_web, target MUST contain ONLY the actual
-   search query.
+7. "Open YouTube" means:
 
-10. Remove words such as:
-    "search"
-    "find"
-    "google"
-    "youtube"
-    "reddit"
-    "bing"
-    "duckduckgo"
-    "on"
-    "for"
-    from the search target when they are command words.
+   open_web
+   target="YouTube"
 
-11. Browser should be "default" unless explicitly specified.
+8. "Open YouTube in Chrome" means:
 
-12. If the user explicitly specifies Chrome, Edge, or Firefox,
-    preserve that browser.
+   open_web
+   target="YouTube"
+   browser="Chrome"
 
-13. If no site is specified, site MUST be null.
+9. "Open Chrome and open YouTube" means compound.
 
-14. If no engine is specified, engine MUST be "google".
+10. If a sentence contains both conversation/question text
+    and an executable request, preserve the executable request.
 
-15. Preserve both action and conversational content when needed.
 
-16. Return ONLY valid JSON.
+SEARCH_WEB:
 
-JSON format for search:
+
+11. Use "search_web" when the user wants to search for:
+
+    - information
+    - content
+    - pages
+    - videos
+    - posts
+    - repositories
+    - articles
+    - discussions
+    - products
+    - anything else searchable on the web
+
+
+12. Searching and opening are different.
+
+    "Open YouTube"
+
+    ->
+    open_web
+    target="YouTube"
+
+
+13. A website and a search engine are DIFFERENT concepts.
+
+    A website is the place the user wants information FROM.
+
+    A search engine is the system used to perform the search.
+
+
+14. If the user explicitly asks to search a particular website,
+    put that website's domain in "site".
+
+    Example:
+
+    "Search Reddit for Minecraft Bedwars"
+
+    ->
+    intent="search_web"
+    target="Minecraft Bedwars"
+    site="reddit.com"
+    engine="google"
+
+
+15. Another example:
+
+    "Search GitHub for Python AI agents"
+
+    ->
+    intent="search_web"
+    target="Python AI agents"
+    site="github.com"
+    engine="google"
+
+
+16. Another example:
+
+    "Search YouTube for Minecraft tutorials"
+
+    ->
+    intent="search_web"
+    target="Minecraft tutorials"
+    site="youtube.com"
+    engine="google"
+
+
+17. Another example:
+
+    "Search Mozilla for Firefox extensions"
+
+    ->
+    intent="search_web"
+    target="Firefox extensions"
+    site="mozilla.org"
+    engine="google"
+
+
+18. IMPORTANT:
+
+    The site field is NOT restricted to a predefined list.
+
+    NEVER assume that only Reddit, GitHub, YouTube, Mozilla,
+    Stack Overflow, etc. are valid websites.
+
+    If the user specifies ANY website, infer its real domain
+    whenever reasonably possible.
+
+
+19. Examples of arbitrary websites:
+
+    "Search Medium for Python articles"
+    -> site="medium.com"
+
+    "Search Wikipedia for Naruto"
+    -> site="wikipedia.org"
+
+    "Search Netflix for Stranger Things"
+    -> site="netflix.com"
+
+    "Search example.com for cats"
+    -> site="example.com"
+
+
+20. If the user directly provides a domain or URL,
+    preserve that domain.
+
+    Example:
+
+    "Search example.com for Minecraft"
+
+    ->
+    site="example.com"
+    target="Minecraft"
+
+
+21. If the user does NOT specify a website,
+    site MUST be null.
+
+    Example:
+
+    "Search the web for Minecraft tutorials"
+
+    ->
+    site=null
+    engine="google"
+
+
+22. The "target" field MUST contain ONLY the actual
+    search query.
+
+    Never include:
+
+    - search
+    - find
+    - site:
+    - website names
+    - search-engine names
+    - browser names
+
+
+23. Search engine selection:
+
+    "Google X"
+    -> engine="google"
+
+    "Search Google for X"
+    -> engine="google"
+
+    "Search Bing for X"
+    -> engine="bing"
+
+    "Search DuckDuckGo for X"
+    -> engine="duckduckgo"
+
+
+24. If no general search engine is explicitly requested,
+    use:
+
+    engine="google"
+
+
+25. Do NOT treat a website as a search engine.
+
+    "Search Reddit for X"
+
+    means:
+
+    site="reddit.com"
+    engine="google"
+
+    NOT:
+
+    engine="reddit"
+
+
+26. Browser should be "default" unless the user explicitly
+    specifies Chrome, Edge, Firefox, etc.
+
+27. If the user explicitly specifies a browser, preserve it.
+
+28. Do not convert a website search into open_web.
+
+29. Do not invent a website merely because the query mentions
+    a company, product, person, or topic.
+
+30. Return ONLY valid JSON.
+
+
+JSON FORMAT:
+
+For one action:
 
 {{
     "type": "single",
     "actions": [
         {{
             "intent": "search_web",
-            "target": "Minecraft tutorials",
-            "site": "youtube",
+            "target": "Minecraft Bedwars",
+            "site": "reddit.com",
             "engine": "google",
             "browser": "default"
         }}
@@ -281,13 +313,53 @@ JSON format for search:
     "conversation": null
 }}
 
-JSON format for conversation:
+
+For a general web search:
+
+{{
+    "type": "single",
+    "actions": [
+        {{
+            "intent": "search_web",
+            "target": "Minecraft tutorials",
+            "site": null,
+            "engine": "google",
+            "browser": "default"
+        }}
+    ],
+    "conversation": null
+}}
+
+
+For conversation:
 
 {{
     "type": "conversation",
     "actions": [],
     "conversation": "{message}"
 }}
+
+
+For compound:
+
+{{
+    "type": "compound",
+    "actions": [
+        {{
+            "intent": "open_app",
+            "target": "Chrome"
+        }},
+        {{
+            "intent": "search_web",
+            "target": "Minecraft tutorials",
+            "site": "youtube.com",
+            "engine": "google",
+            "browser": "Chrome"
+        }}
+    ],
+    "conversation": null
+}}
+
 
 Recent conversation:
 {history_text}
@@ -305,89 +377,25 @@ Current user message:
             message
         )
 
-    def _infer_search_destination(
-        self,
-        message,
-        current_site,
-        current_engine
-    ):
-        """
-        Deterministically recover explicit search destinations
-        from the user's original message.
-
-        This protects against the LLM accidentally converting
-        a site-specific search into a generic Google search.
-        """
-
-        text = message.lower().strip()
-
-        site_patterns = {
-            "youtube": [
-                r"\bsearch\s+(?:on\s+)?youtube\b",
-                r"\bsearch\s+youtube\b",
-                r"\bon\s+youtube\b",
-            ],
-
-            "reddit": [
-                r"\bsearch\s+(?:on\s+)?reddit\b",
-                r"\bsearch\s+reddit\b",
-                r"\bon\s+reddit\b",
-            ],
-
-            "github": [
-                r"\bsearch\s+(?:on\s+)?github\b",
-                r"\bsearch\s+github\b",
-                r"\bon\s+github\b",
-            ],
-
-            "stackoverflow": [
-                r"\bsearch\s+(?:on\s+)?stackoverflow\b",
-                r"\bsearch\s+stackoverflow\b",
-                r"\bon\s+stackoverflow\b",
-            ],
-
-            "wikipedia": [
-                r"\bsearch\s+(?:on\s+)?wikipedia\b",
-                r"\bsearch\s+wikipedia\b",
-                r"\bon\s+wikipedia\b",
-            ],
-
-            "amazon": [
-                r"\bsearch\s+(?:on\s+)?amazon\b",
-                r"\bsearch\s+amazon\b",
-                r"\bon\s+amazon\b",
-            ],
-
-            "quora": [
-                r"\bsearch\s+(?:on\s+)?quora\b",
-                r"\bsearch\s+quora\b",
-                r"\bon\s+quora\b",
-            ],
-        }
-
-        for site, patterns in site_patterns.items():
-
-            for pattern in patterns:
-
-                if re.search(pattern, text):
-                    return site
-
-        if current_site in self.SEARCH_SITES:
-            return current_site
-
-        return None
 
     def _infer_search_engine(
         self,
         message,
         current_engine
     ):
-        """
-        Deterministically correct explicit general
-        search-engine requests.
-        """
 
         text = message.lower().strip()
+
+        # Explicit general search engines only.
+        #
+        # Websites such as YouTube, Reddit, GitHub, etc.
+        # are NOT search engines here.
+
+        if re.search(
+            r"\b(?:search\s+(?:on\s+)?google|google)\b",
+            text
+        ):
+            return "google"
 
         if re.search(
             r"\bsearch\s+(?:on\s+)?bing\s+(?:for\s+)?",
@@ -401,16 +409,42 @@ Current user message:
         ):
             return "duckduckgo"
 
-        if re.search(
-            r"\b(?:search\s+(?:on\s+)?google|google)\b",
-            text
-        ):
-            return "google"
-
         if current_engine in self.SEARCH_ENGINES:
             return current_engine
 
         return "google"
+
+
+    def _clean_site(
+        self,
+        site
+    ):
+
+        if not site:
+            return None
+
+        site = str(site).strip().lower()
+
+        if not site:
+            return None
+
+        # Remove protocol.
+        site = re.sub(
+            r"^https?://",
+            "",
+            site
+        )
+
+        # Remove path.
+        site = site.split("/")[0]
+
+        # Remove www.
+        site = site.removeprefix(
+            "www."
+        )
+
+        return site or None
+
 
     def _parse(
         self,
@@ -419,12 +453,14 @@ Current user message:
     ):
 
         if not raw:
+
             return self._fallback(
                 original_message
             )
 
         raw = raw.strip()
 
+        # Remove markdown code fences.
         raw = re.sub(
             r"^```(?:json)?\s*",
             "",
@@ -450,7 +486,10 @@ Current user message:
                 original_message
             )
 
-        if not isinstance(data, dict):
+        if not isinstance(
+            data,
+            dict
+        ):
 
             return self._fallback(
                 original_message
@@ -461,7 +500,10 @@ Current user message:
             []
         )
 
-        if not isinstance(actions, list):
+        if not isinstance(
+            actions,
+            list
+        ):
 
             return self._fallback(
                 original_message
@@ -471,7 +513,10 @@ Current user message:
 
         for action in actions:
 
-            if not isinstance(action, dict):
+            if not isinstance(
+                action,
+                dict
+            ):
                 continue
 
             intent = action.get(
@@ -499,15 +544,10 @@ Current user message:
                 "search_web"
             }:
 
-                browser = (
+                cleaned["browser"] = (
                     action.get("browser")
                     or "default"
-                ).strip().lower()
-
-                if browser not in self.BROWSERS:
-                    browser = "default"
-
-                cleaned["browser"] = browser
+                )
 
             if intent == "search_web":
 
@@ -521,21 +561,11 @@ Current user message:
                     engine
                 )
 
-                site = (
+                cleaned["engine"] = engine
+
+                cleaned["site"] = self._clean_site(
                     action.get("site")
                 )
-
-                if isinstance(site, str):
-                    site = site.strip().lower()
-
-                site = self._infer_search_destination(
-                    original_message,
-                    site,
-                    engine
-                )
-
-                cleaned["engine"] = engine
-                cleaned["site"] = site
 
             validated_actions.append(
                 cleaned
@@ -575,6 +605,7 @@ Current user message:
             "actions": validated_actions,
             "conversation": conversation
         }
+
 
     def _fallback(
         self,
