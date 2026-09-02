@@ -17,6 +17,8 @@ class IntentRouter:
         "close_app",
         "timer",
         "app_status",
+        "visual_observe",
+        "visual_click",
         "compound",
     }
 
@@ -292,7 +294,64 @@ SEARCH_WEB:
 29. Do not invent a website merely because the query mentions
     a company, product, person, or topic.
 
-30. Return ONLY valid JSON.
+30. VISUAL COMPUTER-USE:
+
+- visual_observe
+- visual_click
+
+Use "visual_observe" when the user wants Drax to look at,
+understand, describe, inspect, or analyze the current screen.
+
+Examples:
+
+"What's on my screen?"
+"What am I looking at?"
+"Look at my screen."
+"What's happening on my desktop?"
+"Tell me what's open."
+"Analyze my screen."
+
+For visual_observe:
+- target MUST be null.
+
+Use "visual_click" when the user explicitly asks Drax
+to click a visible UI element.
+
+Examples:
+
+"Click the Problems tab."
+"Click the Settings button."
+"Click the search box."
+"Press the login button."
+
+For visual_click:
+- target MUST contain ONLY the visible thing to click.
+- Do not put words like "click", "press", or "find" in target.
+
+Example:
+
+"Click the Problems tab."
+
+->
+
+{{
+  "intent": "visual_click",
+  "target": "Problems"
+}}
+
+"What's on my screen?"
+
+->
+
+{{
+  "intent": "visual_observe",
+  "target": null
+}}
+
+IMPORTANT:
+Visual commands must NOT be classified as normal conversation.
+
+31. Return ONLY valid JSON.
 
 
 JSON FORMAT:

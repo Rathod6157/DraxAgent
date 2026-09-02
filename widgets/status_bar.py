@@ -2,13 +2,14 @@ from PySide6.QtWidgets import (
     QWidget,
     QLabel,
     QHBoxLayout,
-    QGraphicsOpacityEffect,
 )
 
 from PySide6.QtCore import (
+    Qt,
     QTimer,
     QPropertyAnimation,
     QEasingCurve,
+    Property,
 )
 
 import widgets.theme as theme
@@ -19,92 +20,126 @@ class StatusBar(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.status_color = "#49D17D"
+        self._opacity = 1.0
+        self._visible_state = False
 
-        self.build_ui()
+        self.dots = 1
+        self.status_color = theme.SUCCESS
 
+        self._build_ui()
+        self._build_timers()
+        self._build_animations()
 
-    def build_ui(self):
+        self.hide()
+
+    # =========================================================
+    # UI
+    # =========================================================
+
+    def _build_ui(self):
+
+        self.setAttribute(
+            Qt.WA_StyledBackground,
+            True
+        )
 
         layout = QHBoxLayout(self)
 
         layout.setContentsMargins(
-            12,
-            8,
-            12,
-            8
+            14,
+            7,
+            14,
+            7
         )
 
+        layout.setSpacing(8)
+
+        # -----------------------------------------------------
+        # Status indicator
+        # -----------------------------------------------------
+
         self.icon = QLabel("●")
+
+        self.icon.setFixedWidth(10)
+
+        self.icon.setAlignment(
+            Qt.AlignCenter
+        )
+
+        # -----------------------------------------------------
+        # Status text
+        # -----------------------------------------------------
+
         self.label = QLabel("")
 
-        layout.addWidget(self.icon)
-        layout.addWidget(self.label)
+        self.label.setAlignment(
+            Qt.AlignVCenter
+        )
+
+        self.label.setTextInteractionFlags(
+            Qt.NoTextInteraction
+        )
+
+        # -----------------------------------------------------
+        # Layout
+        # -----------------------------------------------------
+
+        layout.addWidget(
+            self.icon
+        )
+
+        layout.addWidget(
+            self.label
+        )
 
         layout.addStretch()
 
-        self.setStyleSheet(f"""
-        QWidget {{
-            background: {theme.DRAX_BUBBLE};
-            border-radius: 12px;
-        }}
+        # -----------------------------------------------------
+        # Styling
+        # -----------------------------------------------------
 
-        QLabel {{
-            color: {theme.TEXT};
-            font-size: 13px;
-        }}
+        self.setStyleSheet(f"""
+            StatusBar {{
+                background: {theme.STATUS_BACKGROUND};
+                border: 1px solid {theme.STATUS_BORDER};
+                border-radius: 12px;
+            }}
+
+            QLabel {{
+                background: transparent;
+                border: none;
+            }}
         """)
 
-        # -----------------------------
-        # Status dot
-        # -----------------------------
+        self.label.setStyleSheet(f"""
+            color: {theme.TEXT_SECONDARY};
+            font-size: {theme.STATUS_SIZE}px;
+            font-weight: 500;
+        """)
 
-        self.set_dot_color(
-            self.status_color
+        self.icon.setStyleSheet(f"""
+            color: {theme.SUCCESS};
+            font-size: 9px;
+        """)
+
+        self.setMinimumHeight(34)
+
+    # =========================================================
+    # TIMERS
+    # =========================================================
+
+    def _build_timers(self):
+
+        # Thinking / processing dots
+        self.dots_timer = QTimer(self)
+
+        self.dots_timer.setInterval(380)
+
+        self.dots_timer.timeout.connect(
+            self._animate_dots
         )
 
-        # -----------------------------
-        # Dot animation
-        # -----------------------------
-
-        self.dots = 1
-
-        self.timer = QTimer(self)
-
-        self.timer.timeout.connect(
-            self.animate
-        )
-
-        # -----------------------------
-        # Fade effect
-        # -----------------------------
-
-        self.opacity_effect = QGraphicsOpacityEffect(
-            self
-        )
-
-        self.setGraphicsEffect(
-            self.opacity_effect
-        )
-
-        self.opacity_effect.setOpacity(
-            0.0
-        )
-
-        self.fade_animation = QPropertyAnimation(
-            self.opacity_effect,
-            b"opacity",
-            self
-        )
-
-        self.fade_animation.setEasingCurve(
-            QEasingCurve.Type.InOutCubic
-        )
-
-        # -----------------------------
         # Delayed fade-out
-        # -----------------------------
-
         self.fade_timer = QTimer(self)
 
         self.fade_timer.setSingleShot(True)
@@ -113,33 +148,65 @@ class StatusBar(QWidget):
             self.fade_out
         )
 
-        self.is_fading = False
+    # =========================================================
+    # ANIMATIONS
+    # =========================================================
 
-        self.hide()
+    def _build_animations(self):
 
+        self.fade_animation = QPropertyAnimation(
+            self,
+            b"opacity",
+            self
+        )
 
-    # =================================
+        self.fade_animation.setEasingCurve(
+            QEasingCurve.OutCubic
+        )
+
+        self.fade_animation.finished.connect(
+            self._fade_finished
+        )
+
+    # =========================================================
+    # OPACITY PROPERTY
+    # =========================================================
+
+    def get_opacity(self):
+        return self._opacity
+
+    def set_opacity(self, value):
+
+        self._opacity = value
+
+        # Qt widgets don't have a native opacity property,
+        # so use window opacity only when supported.
+        self.setWindowOpacity(
+            max(0.0, min(1.0, value))
+        )
+
+    opacity = Property(
+        float,
+        get_opacity,
+        set_opacity
+    )
+
+    # =========================================================
     # DOT COLOR
-    # =================================
+    # =========================================================
 
-    def set_dot_color(
-        self,
-        color
-    ):
+    def set_dot_color(self, color):
 
         self.status_color = color
 
-        self.icon.setStyleSheet(
-            f"""
+        self.icon.setStyleSheet(f"""
             color: {color};
-            font-size: 13px;
-            """
-        )
+            font-size: 9px;
+        """)
 
-
-    # =================================
-    # SHOW / START
-    # =================================
+    # =========================================================
+    # SHOW MESSAGE
+    # =========================================================
 
     def show_message(
         self,
@@ -150,53 +217,74 @@ class StatusBar(QWidget):
         self.fade_timer.stop()
         self.fade_animation.stop()
 
-        self.is_fading = False
+        self._visible_state = True
 
-        self.label.setText(text)
+        # -----------------------------------------------------
+        # Text
+        # -----------------------------------------------------
+
+        self.label.setText(
+            text
+        )
+
+        # -----------------------------------------------------
+        # Color
+        # -----------------------------------------------------
+
+        self.set_dot_color(
+            color if color is not None
+            else theme.SUCCESS
+        )
+
+        # -----------------------------------------------------
+        # Dots
+        # -----------------------------------------------------
 
         self.dots = 1
+
         self.icon.setText("●")
 
-        if color is not None:
+        self.dots_timer.start()
 
-            self.set_dot_color(
-                color
+        # -----------------------------------------------------
+        # Show
+        # -----------------------------------------------------
+
+        if not self.isVisible():
+
+            self.setWindowOpacity(
+                0.0
             )
+
+            self._opacity = 0.0
+
+            self.show()
+
+            self.fade_animation.setDuration(
+                180
+            )
+
+            self.fade_animation.setStartValue(
+                0.0
+            )
+
+            self.fade_animation.setEndValue(
+                1.0
+            )
+
+            self.fade_animation.start()
 
         else:
 
-            self.set_dot_color(
-                "#49D17D"
+            self.setWindowOpacity(
+                1.0
             )
 
-        self.show()
+            self._opacity = 1.0
 
-        self.opacity_effect.setOpacity(
-            0.0
-        )
-
-        # Fade IN
-        self.fade_animation.setDuration(
-            300
-        )
-
-        self.fade_animation.setStartValue(
-            0.0
-        )
-
-        self.fade_animation.setEndValue(
-            1.0
-        )
-
-        self.fade_animation.start()
-
-        # Start dots
-        self.timer.start(350)
-
-
-    # =================================
+    # =========================================================
     # UPDATE MESSAGE
-    # =================================
+    # =========================================================
 
     def update_message(
         self,
@@ -213,6 +301,8 @@ class StatusBar(QWidget):
 
             return
 
+        self.fade_timer.stop()
+
         self.label.setText(
             text
         )
@@ -223,18 +313,20 @@ class StatusBar(QWidget):
                 color
             )
 
-
-    # =================================
-    # FINISH
-    # =================================
+    # =========================================================
+    # FINISH MESSAGE
+    # =========================================================
 
     def finish_message(
         self,
         text=None,
-        delay=1200
+        delay=900
     ):
 
-        self.timer.stop()
+        self.dots_timer.stop()
+
+        self.dots = 1
+        self.icon.setText("●")
 
         if text is not None:
 
@@ -242,107 +334,109 @@ class StatusBar(QWidget):
                 text
             )
 
-        self.dots = 1
-        self.icon.setText("●")
-
-        # Wait before fading out.
         self.fade_timer.start(
-            delay
+            max(0, delay)
         )
 
-
-    # =================================
+    # =========================================================
     # FADE OUT
-    # =================================
+    # =========================================================
 
     def fade_out(self):
 
-        if self.is_fading:
+        if not self.isVisible():
             return
 
-        self.is_fading = True
+        self.fade_timer.stop()
+        self.dots_timer.stop()
 
-        self.timer.stop()
         self.fade_animation.stop()
 
         self.fade_animation.setDuration(
-            500
+            220
         )
 
         self.fade_animation.setStartValue(
-            self.opacity_effect.opacity()
+            self.windowOpacity()
         )
 
         self.fade_animation.setEndValue(
             0.0
         )
 
-        self.fade_animation.finished.connect(
-            self._finish_fade
-        )
-
         self.fade_animation.start()
 
+    # =========================================================
+    # FADE COMPLETE
+    # =========================================================
 
-    def _finish_fade(self):
+    def _fade_finished(self):
 
-        try:
-
-            self.fade_animation.finished.disconnect(
-                self._finish_fade
-            )
-
-        except RuntimeError:
-
-            pass
+        if self.windowOpacity() > 0.01:
+            return
 
         self.hide()
 
         self.label.clear()
 
-        self.opacity_effect.setOpacity(
-            0.0
+        self.dots = 1
+
+        self.icon.setText(
+            "●"
         )
 
-        self.is_fading = False
+        self._opacity = 0.0
 
+        self._visible_state = False
 
-    # =================================
+        self.setWindowOpacity(
+            1.0
+        )
+
+    # =========================================================
     # FORCE HIDE
-    # =================================
+    # =========================================================
 
     def hide_message(self):
 
         self.fade_timer.stop()
-        self.timer.stop()
+        self.dots_timer.stop()
         self.fade_animation.stop()
 
         self.hide()
 
-        self.opacity_effect.setOpacity(
-            0.0
-        )
+        self.label.clear()
 
         self.dots = 1
-        self.icon.setText("●")
 
-        self.set_dot_color(
-            "#49D17D"
+        self.icon.setText(
+            "●"
         )
 
-        self.is_fading = False
+        self.set_dot_color(
+            theme.SUCCESS
+        )
 
+        self._opacity = 1.0
 
-    # =================================
-    # DOTS
-    # =================================
+        self.setWindowOpacity(
+            1.0
+        )
 
-    def animate(self):
+        self._visible_state = False
+
+    # =========================================================
+    # DOT ANIMATION
+    # =========================================================
+
+    def _animate_dots(self):
+
+        if not self.isVisible():
+            return
 
         self.dots += 1
 
         if self.dots > 3:
-
             self.dots = 1
 
         self.icon.setText(

@@ -13,6 +13,7 @@ from brain.context import context
 from brain.activity import activity
 from brain.activity_engine import activity_engine
 from PySide6.QtCore import (
+    Qt,
     QTimer,
     QObject,
     QThread,
@@ -46,6 +47,11 @@ from widgets.summon_window import (
     GlobalHotkeyFilter,
 )
 
+from PySide6.QtGui import (
+    QIcon,
+    QPixmap,
+)
+
 
 class Worker(QObject):
 
@@ -70,6 +76,10 @@ class Worker(QObject):
                 self.command
             )
 
+            # -------------------------------------------------
+            # Direct string response
+            # -------------------------------------------------
+
             if isinstance(response, str):
 
                 response = response.strip()
@@ -79,16 +89,80 @@ class Worker(QObject):
                         response
                     )
 
-            else:
-                self.response_ready.emit(
-                    "Done."
+                return
+
+
+            # -------------------------------------------------
+            # Structured response
+            # -------------------------------------------------
+
+            if response is not None:
+
+                # ExecutionResult-style response
+                message = getattr(
+                    response,
+                    "message",
+                    None
                 )
+
+                if message:
+
+                    self.response_ready.emit(
+                        str(message).strip()
+                    )
+
+                    return
+
+
+                # Dictionary-style response
+                if isinstance(response, dict):
+
+                    message = response.get(
+                        "message"
+                    )
+
+                    if message:
+
+                        self.response_ready.emit(
+                            str(message).strip()
+                        )
+
+                        return
+
+
+                    # Some pending/skill responses may contain
+                    # useful status information.
+                    status = response.get(
+                        "status"
+                    )
+
+                    if status:
+
+                        self.response_ready.emit(
+                            str(status).replace(
+                                "_",
+                                " "
+                            ).capitalize()
+                        )
+
+                        return
+
+
+            # -------------------------------------------------
+            # Truly empty response
+            # -------------------------------------------------
+
+            self.response_ready.emit(
+                "Sorry, couldn't generate a response for that. Try again."
+            )
+
 
         except Exception as error:
 
             self.response_ready.emit(
                 f"Something went wrong: {error}"
             )
+
 
         finally:
 
@@ -106,7 +180,11 @@ class DraxWindow(QWidget):
         super().__init__()
 
         self.setWindowTitle(
-            "🤖 DraxAgent"
+            "DraxAgent"
+        )
+
+        self.setWindowIcon(
+            QIcon(theme.DRAX_ICON)
         )
 
         self.resize(
@@ -115,6 +193,8 @@ class DraxWindow(QWidget):
         )
 
         self.build_ui()
+        
+        self._has_user_messages = False
 
         # ---------------------------------
         # Presence monitor
@@ -214,13 +294,39 @@ class DraxWindow(QWidget):
             14
         )
 
-        icon = QLabel(
-            "🤖"
+        icon = QLabel()
+
+        icon.setFixedSize(
+            theme.LOGO_LARGE_SIZE,
+            theme.LOGO_LARGE_SIZE,
         )
 
-        icon.setStyleSheet("""
-            font-size:40px;
-        """)
+        logo_pixmap = QPixmap(
+            theme.DRAX_ICON
+        )
+
+        if not logo_pixmap.isNull():
+
+            icon.setPixmap(
+                logo_pixmap.scaled(
+                    theme.LOGO_LARGE_SIZE,
+                    theme.LOGO_LARGE_SIZE,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation,
+                )
+            )
+
+        icon.setAlignment(
+            Qt.AlignCenter
+        )
+
+        icon.setStyleSheet(
+            """
+            QLabel {
+                background: transparent;
+            }
+            """
+        )
 
         titles = QVBoxLayout()
 
@@ -870,11 +976,33 @@ class DraxWindow(QWidget):
         if not command:
             return
 
+        # ---------------------------------
+        # First real user message
+        # ---------------------------------
+
+        if not self._has_user_messages:
+
+            self._has_user_messages = True
+
+            if hasattr(
+                self.chat,
+                "hide_welcome"
+            ):
+                self.chat.hide_welcome()
+
+        # ---------------------------------
+        # Add user message
+        # ---------------------------------
+
         self.chat.add_user_message(
             command
         )
 
         self.chat.show_typing()
+
+        # ---------------------------------
+        # Worker
+        # ---------------------------------
 
         self.thread = QThread()
 
@@ -911,6 +1039,11 @@ class DraxWindow(QWidget):
         )
 
         self.thread.start()
+
+        bus.emit(
+            "message",
+            command
+        )
 
 
     # =================================

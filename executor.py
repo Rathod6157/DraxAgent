@@ -3,6 +3,7 @@ from skills.skill_loader import get_skill
 
 from brain.execution_result import ExecutionResult
 
+from brain.visual_bridge import visual_bridge
 
 def execute(task: Task):
 
@@ -89,6 +90,120 @@ def execute(task: Task):
             handled=True,
             success=True,
             message="👍 Okay, I won't do that."
+        )
+        
+    # -----------------------
+    # Visual observation
+    # -----------------------
+
+    if task.intent == "visual_observe":
+
+        result = visual_bridge.observe(
+            instruction=(
+                task.data.get("raw_command")
+                or "Describe the current desktop."
+            )
+        )
+
+        if not result.get("success", False):
+
+            return ExecutionResult(
+                handled=True,
+                success=False,
+                message=(
+                    "I couldn't understand the current screen."
+                ),
+                data=result
+            )
+
+        vision = result.get(
+            "vision",
+            {}
+        )
+
+        summary = vision.get(
+            "summary",
+            "I can see the current desktop."
+        )
+
+        application = vision.get(
+            "application"
+        )
+
+        text = vision.get(
+            "text",
+            []
+        )
+
+        message_parts = [
+            summary
+        ]
+
+        if application:
+            message_parts.append(
+                f"Main application: {application}."
+            )
+
+        if text:
+            visible_text = ", ".join(
+                str(item)
+                for item in text[:12]
+            )
+
+            message_parts.append(
+                f"Visible text: {visible_text}."
+            )
+
+        return ExecutionResult(
+            handled=True,
+            success=True,
+            message=" ".join(message_parts),
+            data=result
+        )
+
+
+    # -----------------------
+    # Visual click
+    # -----------------------
+
+    if task.intent == "visual_click":
+
+        target = (
+            task.target
+            or task.data.get("target")
+        )
+
+        if not target:
+
+            return ExecutionResult(
+                handled=True,
+                success=False,
+                message="I need to know what you want me to click."
+            )
+
+        result = visual_bridge.click(
+            target
+        )
+
+        if not result.get("success", False):
+
+            return ExecutionResult(
+                handled=True,
+                success=False,
+                message=(
+                    f"I couldn't successfully click "
+                    f"'{target}'."
+                ),
+                data=result
+            )
+
+        return ExecutionResult(
+            handled=True,
+            success=True,
+            message=(
+                f"Clicked '{target}' and verified the screen."
+            ),
+            data=result
         )
 
 
