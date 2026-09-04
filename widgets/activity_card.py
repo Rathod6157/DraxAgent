@@ -4,9 +4,15 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QFrame,
+    QGraphicsOpacityEffect,
 )
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import (
+    Qt,
+    QTimer,
+    QPropertyAnimation,
+    QEasingCurve,
+)
 
 import widgets.theme as theme
 
@@ -17,13 +23,101 @@ class ActivityCard(QWidget):
         super().__init__()
 
         self.current_window_started = None
+        self.current_context = ""
 
         self.build_ui()
 
+        # ---------------------------------
+        # Duration timer
+        # ---------------------------------
+
         self.duration_timer = QTimer(self)
+
+        self.duration_timer.setInterval(
+            1000
+        )
+
         self.duration_timer.timeout.connect(
             self.update_duration
         )
+
+        # ---------------------------------
+        # Activity transition
+        #
+        # Only the content fades.
+        # The card itself never moves.
+        # ---------------------------------
+
+        self.content_opacity = (
+            QGraphicsOpacityEffect(
+                self.content_container
+            )
+        )
+
+        self.content_container.setGraphicsEffect(
+            self.content_opacity
+        )
+
+        self.content_fade = QPropertyAnimation(
+            self.content_opacity,
+            b"opacity",
+            self
+        )
+
+        self.content_fade.setDuration(
+            180
+        )
+
+        self.content_fade.setEasingCurve(
+            QEasingCurve.OutCubic
+        )
+
+        # ---------------------------------
+        # Live indicator pulse
+        # ---------------------------------
+
+        self.indicator_opacity = (
+            QGraphicsOpacityEffect(
+                self.indicator
+            )
+        )
+
+        self.indicator.setGraphicsEffect(
+            self.indicator_opacity
+        )
+
+        self.indicator_pulse = QPropertyAnimation(
+            self.indicator_opacity,
+            b"opacity",
+            self
+        )
+
+        self.indicator_pulse.setDuration(
+            1400
+        )
+
+        self.indicator_pulse.setStartValue(
+            1.0
+        )
+
+        self.indicator_pulse.setKeyValueAt(
+            0.5,
+            0.42
+        )
+
+        self.indicator_pulse.setEndValue(
+            1.0
+        )
+
+        self.indicator_pulse.setEasingCurve(
+            QEasingCurve.InOutSine
+        )
+
+        self.indicator_pulse.setLoopCount(
+            -1
+        )
+
+        self.indicator_pulse.start()
 
     # =================================
     # UI
@@ -31,16 +125,82 @@ class ActivityCard(QWidget):
 
     def build_ui(self):
 
-        layout = QVBoxLayout(self)
-
-        layout.setContentsMargins(
-            14,
-            10,
-            14,
-            10
+        outer_layout = QHBoxLayout(
+            self
         )
 
-        layout.setSpacing(4)
+        outer_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0
+        )
+
+        outer_layout.setSpacing(
+            0
+        )
+
+        # ---------------------------------
+        # Accent rail
+        # ---------------------------------
+
+        self.accent_rail = QFrame()
+
+        self.accent_rail.setFixedWidth(
+            3
+        )
+
+        self.accent_rail.setStyleSheet(f"""
+            background: {theme.ACCENT};
+            border: none;
+            border-radius: 2px;
+        """)
+
+        outer_layout.addWidget(
+            self.accent_rail
+        )
+
+        # ---------------------------------
+        # Main card
+        # ---------------------------------
+
+        self.card = QFrame()
+
+        self.card.setObjectName(
+            "activityCard"
+        )
+
+        self.card.setStyleSheet(f"""
+            QFrame#activityCard {{
+                background: {theme.STATUS_BUBBLE};
+                border: 1px solid {theme.STATUS_BORDER};
+                border-left: none;
+                border-radius: 0px 12px 12px 0px;
+            }}
+        """)
+
+        outer_layout.addWidget(
+            self.card
+        )
+
+        # ---------------------------------
+        # Card layout
+        # ---------------------------------
+
+        layout = QVBoxLayout(
+            self.card
+        )
+
+        layout.setContentsMargins(
+            15,
+            11,
+            15,
+            12
+        )
+
+        layout.setSpacing(
+            5
+        )
 
         # ---------------------------------
         # Header
@@ -48,16 +208,43 @@ class ActivityCard(QWidget):
 
         header = QHBoxLayout()
 
-        header.setSpacing(6)
+        header.setContentsMargins(
+            0,
+            0,
+            0,
+            0
+        )
 
-        self.indicator = QLabel("●")
+        header.setSpacing(
+            6
+        )
 
-        self.indicator.setFixedWidth(8)
+        # Live dot
+
+        self.indicator = QLabel(
+            "●"
+        )
+
+        self.indicator.setFixedWidth(
+            8
+        )
+
+        self.indicator.setAlignment(
+            Qt.AlignCenter
+        )
 
         self.indicator.setStyleSheet(f"""
             color: {theme.SUCCESS};
-            font-size: 9px;
+            font-size: 8px;
+            background: transparent;
+            border: none;
         """)
+
+        header.addWidget(
+            self.indicator
+        )
+
+        # Header label
 
         self.header_label = QLabel(
             "CURRENTLY"
@@ -67,18 +254,17 @@ class ActivityCard(QWidget):
             color: {theme.TEXT_MUTED};
             font-size: 9px;
             font-weight: 700;
-            letter-spacing: 1px;
+            background: transparent;
+            border: none;
         """)
-
-        header.addWidget(
-            self.indicator
-        )
 
         header.addWidget(
             self.header_label
         )
 
         header.addStretch()
+
+        # Live state
 
         self.live_label = QLabel(
             "LIVE"
@@ -88,30 +274,86 @@ class ActivityCard(QWidget):
             color: {theme.SUCCESS};
             font-size: 8px;
             font-weight: 700;
-            letter-spacing: 1px;
+            background: transparent;
+            border: none;
         """)
 
         header.addWidget(
             self.live_label
         )
 
+        layout.addLayout(
+            header
+        )
+
         # ---------------------------------
-        # Main activity row
+        # Content container
+        #
+        # This is what fades during an update.
+        # The actual card stays stationary.
+        # ---------------------------------
+
+        self.content_container = QWidget()
+
+        self.content_container.setStyleSheet("""
+            background: transparent;
+            border: none;
+        """)
+
+        content_layout = QVBoxLayout(
+            self.content_container
+        )
+
+        content_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0
+        )
+
+        content_layout.setSpacing(
+            3
+        )
+
+        # ---------------------------------
+        # Activity row
         # ---------------------------------
 
         activity_row = QHBoxLayout()
 
-        activity_row.setSpacing(8)
+        activity_row.setContentsMargins(
+            0,
+            0,
+            0,
+            0
+        )
+
+        activity_row.setSpacing(
+            10
+        )
 
         self.activity_label = QLabel(
             "Unknown"
+        )
+
+        self.activity_label.setSizePolicy(
+            self.activity_label.sizePolicy().horizontalPolicy(),
+            self.activity_label.sizePolicy().verticalPolicy()
         )
 
         self.activity_label.setStyleSheet(f"""
             color: {theme.TEXT};
             font-size: 16px;
             font-weight: 700;
+            background: transparent;
+            border: none;
         """)
+
+        activity_row.addWidget(
+            self.activity_label
+        )
+
+        activity_row.addStretch()
 
         self.duration_label = QLabel(
             "Just now"
@@ -125,21 +367,51 @@ class ActivityCard(QWidget):
         self.duration_label.setStyleSheet(f"""
             color: {theme.TEXT_MUTED};
             font-size: 10px;
+            font-weight: 500;
+            background: transparent;
+            border: none;
         """)
-
-        activity_row.addWidget(
-            self.activity_label
-        )
-
-        activity_row.addStretch()
 
         activity_row.addWidget(
             self.duration_label
         )
 
+        content_layout.addLayout(
+            activity_row
+        )
+
         # ---------------------------------
         # Application
         # ---------------------------------
+
+        application_row = QHBoxLayout()
+
+        application_row.setContentsMargins(
+            0,
+            0,
+            0,
+            0
+        )
+
+        application_row.setSpacing(
+            6
+        )
+
+        self.application_marker = QLabel(
+            "▸"
+        )
+
+        self.application_marker.setStyleSheet(f"""
+            color: {theme.ACCENT};
+            font-size: 10px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        """)
+
+        application_row.addWidget(
+            self.application_marker
+        )
 
         self.application_label = QLabel(
             "Waiting for activity..."
@@ -147,7 +419,10 @@ class ActivityCard(QWidget):
 
         self.application_label.setStyleSheet(f"""
             color: {theme.TEXT_SECONDARY};
-            font-size: 11px;
+            font-size: 12px;
+            font-weight: 500;
+            background: transparent;
+            border: none;
         """)
 
         self.application_label.setWordWrap(
@@ -158,15 +433,55 @@ class ActivityCard(QWidget):
             Qt.NoTextInteraction
         )
 
+        application_row.addWidget(
+            self.application_label
+        )
+
+        application_row.addStretch()
+
+        content_layout.addLayout(
+            application_row
+        )
+
+        # ---------------------------------
+        # Drax interpretation
+        # ---------------------------------
+
+        self.context_label = QLabel(
+            ""
+        )
+
+        self.context_label.setStyleSheet(f"""
+            color: {theme.TEXT_MUTED};
+            font-size: 10px;
+            font-weight: 400;
+            background: transparent;
+            border: none;
+        """)
+
+        self.context_label.setWordWrap(
+            False
+        )
+
+        self.context_label.setTextInteractionFlags(
+            Qt.NoTextInteraction
+        )
+
+        self.context_label.hide()
+
+        content_layout.addWidget(
+            self.context_label
+        )
+
+        layout.addWidget(
+            self.content_container
+        )
+
         # ---------------------------------
         # Separator
         # ---------------------------------
 
         self.separator = QFrame()
-
-        self.separator.setFrameShape(
-            QFrame.HLine
-        )
 
         self.separator.setFixedHeight(
             1
@@ -177,22 +492,6 @@ class ActivityCard(QWidget):
             border: none;
         """)
 
-        # ---------------------------------
-        # Layout
-        # ---------------------------------
-
-        layout.addLayout(
-            header
-        )
-
-        layout.addLayout(
-            activity_row
-        )
-
-        layout.addWidget(
-            self.application_label
-        )
-
         layout.addSpacing(
             2
         )
@@ -202,19 +501,16 @@ class ActivityCard(QWidget):
         )
 
         # ---------------------------------
-        # Card
+        # Card sizing
         # ---------------------------------
 
-        self.setStyleSheet(f"""
-            ActivityCard {{
-                background: {theme.STATUS_BUBBLE};
-                border: 1px solid {theme.STATUS_BORDER};
-                border-radius: 12px;
-            }}
-        """)
-
         self.setMinimumHeight(
-            88
+            104
+        )
+
+        self.setSizePolicy(
+            self.sizePolicy().horizontalPolicy(),
+            self.sizePolicy().verticalPolicy()
         )
 
     # =================================
@@ -226,26 +522,89 @@ class ActivityCard(QWidget):
         activity_name,
         application,
         window_title,
-        started_at
+        started_at,
+        context=""
     ):
 
-        self.activity_label.setText(
-            activity_name or "Unknown"
-        )
+        # ---------------------------------
+        # Normalize values
+        # ---------------------------------
 
-        # ---------------------------------
-        # Application
-        # ---------------------------------
+        activity_name = (
+            str(activity_name).strip()
+            if activity_name
+            else "Unknown"
+        )
 
         display_application = (
             application
-            or window_title
             or "Unknown application"
+        )
+
+        display_application = str(
+            display_application
+        ).strip()
+
+        if not display_application:
+            display_application = (
+                "Unknown application"
+            )
+
+        context = (
+            str(context).strip()
+            if context
+            else ""
+        )
+
+        # ---------------------------------
+        # Stop previous transition
+        # ---------------------------------
+
+        if self.content_fade.state():
+            self.content_fade.stop()
+
+        # ---------------------------------
+        # Fade content out slightly
+        # ---------------------------------
+
+        self.content_fade.setStartValue(
+            1.0
+        )
+
+        self.content_fade.setEndValue(
+            0.72
+        )
+
+        self.content_fade.start()
+
+        # ---------------------------------
+        # Update activity
+        # ---------------------------------
+
+        self.activity_label.setText(
+            activity_name
         )
 
         self.application_label.setText(
             display_application
         )
+
+        # ---------------------------------
+        # Optional Drax context
+        # ---------------------------------
+
+        if context:
+
+            self.context_label.setText(
+                context
+            )
+
+            self.context_label.show()
+
+        else:
+
+            self.context_label.clear()
+            self.context_label.hide()
 
         # ---------------------------------
         # Duration
@@ -257,9 +616,23 @@ class ActivityCard(QWidget):
 
         self.update_duration()
 
-        self.duration_timer.start(
-            1000
+        self.duration_timer.start()
+
+        # ---------------------------------
+        # Fade content back in
+        # ---------------------------------
+
+        self.content_fade.stop()
+
+        self.content_fade.setStartValue(
+            0.72
         )
+
+        self.content_fade.setEndValue(
+            1.0
+        )
+
+        self.content_fade.start()
 
     # =================================
     # DURATION
@@ -319,7 +692,8 @@ class ActivityCard(QWidget):
             if minutes:
 
                 text = (
-                    f"{hours}h {minutes}m active"
+                    f"{hours}h "
+                    f"{minutes}m active"
                 )
 
             else:

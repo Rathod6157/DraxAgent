@@ -27,34 +27,17 @@ class ChatArea(QWidget):
     DraxAgent conversation surface.
 
     Responsibilities:
-        - Centered conversation column
-        - Responsive conversation width
-        - Full-width message rows
-        - Stable left/right message alignment
+        - Stable conversation layout
+        - Responsive centered conversation column
         - Predictable scrolling
+        - Safe message insertion/removal
         - Welcome message
         - Thinking indicator
-        - Lightweight animations
+        - Lightweight visual animations
 
-    Layout:
-
-        FULL WINDOW
-        ---------------------------------------------------------
-
-                    CENTERED CHAT COLUMN
-
-              Drax message
-                                      User message
-
-              Drax message
-                                      User message
-
-              Thinking...
-
-        ---------------------------------------------------------
-
-    ChatArea owns positioning.
-    MessageBubble owns the visual bubble.
+    Important:
+        This class does NOT perform any AI/network work.
+        It only manages the GUI.
     """
 
     def __init__(self):
@@ -63,29 +46,31 @@ class ChatArea(QWidget):
         self.welcome_bubble = None
         self.typing = None
 
+        # Active opacity animations.
         self.animations = []
 
+        # Thinking animation compatibility.
         self.typing_animation = None
         self.typing_effect = None
 
-        self._scroll_pending = False
+        # Scroll scheduling.
+        self._scroll_timer = None
+        self._scroll_generation = 0
 
         self.build_ui()
 
+        # Wait until Qt has completed the initial layout pass.
         QTimer.singleShot(
             0,
             self.show_welcome
         )
 
     # ============================================================
-    # MAIN UI
+    # UI
     # ============================================================
 
     def build_ui(self):
-
-        root = QVBoxLayout(
-            self
-        )
+        root = QVBoxLayout(self)
 
         root.setContentsMargins(
             0,
@@ -94,9 +79,7 @@ class ChatArea(QWidget):
             0
         )
 
-        root.setSpacing(
-            0
-        )
+        root.setSpacing(0)
 
         # --------------------------------------------------------
         # Scroll area
@@ -120,17 +103,10 @@ class ChatArea(QWidget):
             Qt.ScrollBarAsNeeded
         )
 
-        self.scroll.setWidget(
-            self._create_scroll_container()
+        self.scroll.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Expanding
         )
-
-        self.scroll.verticalScrollBar().setSingleStep(
-            theme.SCROLL_SINGLE_STEP
-        )
-
-        # --------------------------------------------------------
-        # Scrollbar
-        # --------------------------------------------------------
 
         self.scroll.setStyleSheet(
             f"""
@@ -139,8 +115,14 @@ class ChatArea(QWidget):
                 border: none;
             }}
 
+            QScrollArea > QWidget {{
+                background: {theme.CHAT_BACKGROUND};
+                border: none;
+            }}
+
             QScrollArea > QWidget > QWidget {{
                 background: {theme.CHAT_BACKGROUND};
+                border: none;
             }}
 
             QScrollBar:vertical {{
@@ -171,52 +153,73 @@ class ChatArea(QWidget):
             """
         )
 
+        self.container = self._create_message_container()
+
+        self.scroll.setWidget(
+            self.container
+        )
+
+        self.scroll.verticalScrollBar().setSingleStep(
+            theme.SCROLL_SINGLE_STEP
+        )
+
         root.addWidget(
             self.scroll
         )
 
     # ============================================================
-    # SCROLL CONTAINER
+    # MESSAGE CONTAINER
     # ============================================================
 
-    def _create_scroll_container(self):
+    def _create_message_container(self):
+        """
+        Creates the full-width scroll content.
 
-        self.container = QWidget()
+        The actual conversation is kept centered inside the
+        available width, while remaining responsive on smaller
+        windows.
+        """
 
-        self.container.setObjectName(
-            "chatScrollContainer"
+        container = QWidget()
+
+        container.setObjectName(
+            "chatContainer"
         )
 
-        self.container.setSizePolicy(
+        container.setSizePolicy(
             QSizePolicy.Expanding,
-            QSizePolicy.Expanding
+            QSizePolicy.Minimum
         )
 
-        self.container.setStyleSheet(
+        container.setStyleSheet(
             f"""
-            QWidget#chatScrollContainer {{
+            QWidget#chatContainer {{
                 background: {theme.CHAT_BACKGROUND};
             }}
             """
         )
 
-        self.container_layout = QHBoxLayout(
-            self.container
+        outer = QHBoxLayout(
+            container
         )
 
-        self.container_layout.setContentsMargins(
+        outer.setContentsMargins(
             0,
             0,
             0,
             0
         )
 
-        self.container_layout.setSpacing(
-            0
-        )
+        outer.setSpacing(0)
 
         # --------------------------------------------------------
-        # Center conversation
+        # Left breathing room
+        # --------------------------------------------------------
+
+        outer.addStretch(1)
+
+        # --------------------------------------------------------
+        # Responsive conversation column
         # --------------------------------------------------------
 
         self.conversation = QWidget()
@@ -226,27 +229,22 @@ class ChatArea(QWidget):
         )
 
         self.conversation.setSizePolicy(
-            QSizePolicy.Fixed,
-            QSizePolicy.Preferred
+            QSizePolicy.Expanding,
+            QSizePolicy.Minimum
         )
 
-        self.conversation.setMinimumWidth(
-            0
-        )
-
+        # IMPORTANT:
+        # Use the centralized theme value instead of a hardcoded
+        # 820px limit.
         self.conversation.setMaximumWidth(
-            getattr(
-                theme,
-                "CONVERSATION_MAX_WIDTH",
-                1180
-            )
+            theme.CONVERSATION_MAX_WIDTH
         )
 
         self.conversation.setStyleSheet(
-            """
-            QWidget#conversationColumn {
-                background: transparent;
-            }
+            f"""
+            QWidget#conversationColumn {{
+                background: {theme.CHAT_BACKGROUND};
+            }}
             """
         )
 
@@ -255,226 +253,39 @@ class ChatArea(QWidget):
         )
 
         self.messages.setContentsMargins(
-            getattr(
-                theme,
-                "CONVERSATION_SIDE_PADDING",
-                28
-            ),
-            16,
-            getattr(
-                theme,
-                "CONVERSATION_SIDE_PADDING",
-                28
-            ),
-            24
+            theme.CONVERSATION_SIDE_PADDING,
+            18,
+            theme.CONVERSATION_SIDE_PADDING,
+            22
         )
 
         self.messages.setSpacing(
             theme.CHAT_SPACING
         )
 
+        # --------------------------------------------------------
+        # Bottom anchor
+        # --------------------------------------------------------
+
+        self.bottom_stretch_index = (
+            self.messages.count()
+        )
+
         self.messages.addStretch(
             1
         )
 
-        # --------------------------------------------------------
-        # Put conversation in center.
-        #
-        # IMPORTANT:
-        # We do NOT use left/right stretch widgets here.
-        # Instead, the conversation width is explicitly synced
-        # to the available viewport width.
-        # --------------------------------------------------------
-
-        self.container_layout.addWidget(
-            self.conversation,
-            0,
-            Qt.AlignHCenter
+        outer.addWidget(
+            self.conversation
         )
-
-        # Initial width.
-        QTimer.singleShot(
-            0,
-            self._sync_conversation_width
-        )
-
-        return self.container
-
-    # ============================================================
-    # RESPONSIVE CONVERSATION WIDTH
-    # ============================================================
-
-    def _sync_conversation_width(self):
-
-        if not hasattr(
-            self,
-            "container"
-        ):
-            return
-
-        if not hasattr(
-            self,
-            "conversation"
-        ):
-            return
-
-        available_width = (
-            self.container.width()
-        )
-
-        if available_width <= 0:
-
-            available_width = (
-                self.scroll.viewport().width()
-            )
-
-        if available_width <= 0:
-            return
 
         # --------------------------------------------------------
-        # Horizontal breathing room.
-        #
-        # We leave a comfortable margin on both sides,
-        # but allow the chat column to become much wider on
-        # large/maximized windows.
+        # Right breathing room
         # --------------------------------------------------------
 
-        outer_margin = 56
+        outer.addStretch(1)
 
-        target_width = max(
-            320,
-            available_width - outer_margin
-        )
-
-        maximum_width = getattr(
-            theme,
-            "CONVERSATION_MAX_WIDTH",
-            1180
-        )
-
-        target_width = min(
-            target_width,
-            maximum_width
-        )
-
-        self.conversation.setFixedWidth(
-            int(target_width)
-        )
-
-        self.conversation.updateGeometry()
-
-        self._refresh_message_rows()
-
-    # ============================================================
-    # REFRESH MESSAGE ROWS
-    # ============================================================
-
-    def _refresh_message_rows(self):
-
-        if not hasattr(
-            self,
-            "messages"
-        ):
-            return
-
-        for index in range(
-            self.messages.count() - 1
-        ):
-
-            item = self.messages.itemAt(
-                index
-            )
-
-            widget = item.widget()
-
-            if widget is None:
-                continue
-
-            widget.setSizePolicy(
-                QSizePolicy.Expanding,
-                QSizePolicy.Preferred
-            )
-
-            widget.updateGeometry()
-
-            # ----------------------------------------------------
-            # Give normal Drax messages more breathing room.
-            #
-            # This prevents a normal response from becoming
-            # something like:
-            #
-            # "Hello Harshith. I see you are
-            # working on my code in Visual
-            # Studio Code..."
-            #
-            # just because the bubble's natural size hint
-            # happened to be small.
-            # ----------------------------------------------------
-
-            if (
-                hasattr(widget, "sender")
-                and widget.sender == "drax"
-                and getattr(
-                    widget,
-                    "message_type",
-                    "normal"
-                ) not in (
-                    "welcome",
-                    "status",
-                )
-            ):
-
-                if hasattr(
-                    widget,
-                    "container"
-                ):
-
-                    current_width = (
-                        widget.container.width()
-                    )
-
-                    target_width = min(
-                        620,
-                        max(
-                            460,
-                            current_width
-                        )
-                    )
-
-                    widget.container.setMinimumWidth(
-                        target_width
-                    )
-
-                    widget.container.setMaximumWidth(
-                        min(
-                            getattr(
-                                theme,
-                                "MAX_BUBBLE_WIDTH",
-                                720
-                            ),
-                            720
-                        )
-                    )
-
-            widget.adjustSize()
-
-    # ============================================================
-    # RESIZE
-    # ============================================================
-
-    def resizeEvent(
-        self,
-        event
-    ):
-
-        super().resizeEvent(
-            event
-        )
-
-        QTimer.singleShot(
-            0,
-            self._sync_conversation_width
-        )
+        return container
 
     # ============================================================
     # MESSAGE INSERTION
@@ -484,40 +295,30 @@ class ChatArea(QWidget):
         self,
         widget
     ):
+        """
+        Insert a message immediately before the bottom stretch.
+
+        Existing messages are never repositioned manually.
+        """
 
         if widget is None:
             return
 
-        # --------------------------------------------------------
-        # The MessageBubble itself must fill the entire
-        # conversation column.
-        #
-        # This gives its internal layout a real left/right
-        # surface to align against.
-        # --------------------------------------------------------
+        index = self.messages.count() - 1
 
-        widget.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Preferred
-        )
+        if index < 0:
+            index = 0
 
         self.messages.insertWidget(
-            self.messages.count() - 1,
+            index,
             widget
         )
 
-        # Force the row to immediately acknowledge the
-        # full conversation width.
-        widget.setMinimumWidth(
-            0
-        )
+        widget.show()
 
         widget.updateGeometry()
-
-        QTimer.singleShot(
-            0,
-            self._refresh_message_rows
-        )
+        self.conversation.updateGeometry()
+        self.container.updateGeometry()
 
     # ============================================================
     # FADE IN
@@ -526,8 +327,13 @@ class ChatArea(QWidget):
     def fade_in(
         self,
         widget,
-        duration=160
+        duration=150
     ):
+        """
+        Opacity-only entrance animation.
+
+        No geometry or positional animation is used.
+        """
 
         if widget is None:
             return
@@ -571,16 +377,17 @@ class ChatArea(QWidget):
         )
 
         def finish():
-
             if animation in self.animations:
-
                 self.animations.remove(
                     animation
                 )
 
-            effect.setOpacity(
-                1.0
-            )
+            try:
+                widget.setGraphicsEffect(
+                    None
+                )
+            except RuntimeError:
+                pass
 
         animation.finished.connect(
             finish
@@ -589,42 +396,66 @@ class ChatArea(QWidget):
         animation.start()
 
     # ============================================================
-    # REMOVE WIDGET
+    # SAFE REMOVE
     # ============================================================
 
     def _remove_widget(
         self,
         widget
     ):
+        """
+        Remove a widget safely.
+
+        No geometry animation is used.
+        """
 
         if widget is None:
             return
 
-        widget.setGraphicsEffect(
-            None
-        )
+        try:
+            widget.setGraphicsEffect(
+                None
+            )
+        except RuntimeError:
+            return
 
         widget.hide()
-
         widget.deleteLater()
 
+        self.conversation.updateGeometry()
+        self.container.updateGeometry()
+
     # ============================================================
-    # SCROLL
+    # SCROLLING
     # ============================================================
 
     def scroll_to_bottom(
         self,
         delay=0
     ):
+        """
+        Scroll to the newest message after Qt has completed
+        pending layout/geometry work.
 
-        if self._scroll_pending:
-            return
+        Multiple requests are coalesced.
+        """
 
-        self._scroll_pending = True
+        self._scroll_generation += 1
+
+        generation = (
+            self._scroll_generation
+        )
+
+        if self._scroll_timer is not None:
+            self._scroll_timer.stop()
+            self._scroll_timer.deleteLater()
+            self._scroll_timer = None
 
         def perform():
+            if generation != self._scroll_generation:
+                return
 
-            self._scroll_pending = False
+            self._scroll_timer = None
 
             scrollbar = (
                 self.scroll.verticalScrollBar()
@@ -634,19 +465,37 @@ class ChatArea(QWidget):
                 scrollbar.maximum()
             )
 
-        QTimer.singleShot(
-            delay,
+        timer = QTimer(
+            self
+        )
+
+        timer.setSingleShot(
+            True
+        )
+
+        timer.timeout.connect(
             perform
         )
 
+        self._scroll_timer = timer
+
+        timer.start(
+            max(
+                0,
+                int(delay)
+            )
+        )
+
     # ============================================================
-    # WELCOME MESSAGE
+    # WELCOME
     # ============================================================
 
     def show_welcome(self):
+        """
+        Display the initial Drax greeting.
+        """
 
         if self.welcome_bubble is not None:
-
             self._remove_widget(
                 self.welcome_bubble
             )
@@ -656,28 +505,13 @@ class ChatArea(QWidget):
         hour = datetime.now().hour
 
         if 5 <= hour < 12:
-
-            greeting = (
-                "Good morning."
-            )
-
+            greeting = "Good morning."
         elif 12 <= hour < 17:
-
-            greeting = (
-                "Hey, good afternoon."
-            )
-
+            greeting = "Hey, good afternoon."
         elif 17 <= hour < 22:
-
-            greeting = (
-                "Good evening."
-            )
-
+            greeting = "Good evening."
         else:
-
-            greeting = (
-                "Still up?"
-            )
+            greeting = "Still up?"
 
         suggestions = [
             "• What's on my screen?",
@@ -696,10 +530,7 @@ class ChatArea(QWidget):
         if random.choice(
             [True, False]
         ):
-
-            suggestions = (
-                alternate_suggestions
-            )
+            suggestions = alternate_suggestions
 
         text = (
             f"{greeting}\n\n"
@@ -724,7 +555,7 @@ class ChatArea(QWidget):
         )
 
         self.scroll_to_bottom(
-            delay=20
+            delay=30
         )
 
     # ============================================================
@@ -735,6 +566,11 @@ class ChatArea(QWidget):
         self,
         animated=False
     ):
+        """
+        Remove the welcome bubble.
+
+        'animated' remains for compatibility with gui.py.
+        """
 
         if self.welcome_bubble is None:
             return
@@ -757,13 +593,19 @@ class ChatArea(QWidget):
         sender="drax",
         message_type="normal"
     ):
+        """
+        Create and insert a conversation bubble.
+        """
 
         if text is None:
-            return
+            return None
 
         text = str(
             text
         )
+
+        if not text.strip():
+            return None
 
         bubble = MessageBubble(
             text=text,
@@ -775,13 +617,8 @@ class ChatArea(QWidget):
             bubble
         )
 
-        self.fade_in(
-            bubble,
-            duration=150
-        )
-
         self.scroll_to_bottom(
-            delay=20
+            delay=25
         )
 
         return bubble
@@ -794,6 +631,9 @@ class ChatArea(QWidget):
         self,
         text
     ):
+        """
+        Add a user message.
+        """
 
         self.hide_welcome(
             animated=False
@@ -805,7 +645,7 @@ class ChatArea(QWidget):
         )
 
         self.scroll_to_bottom(
-            delay=35
+            delay=40
         )
 
         return bubble
@@ -819,6 +659,11 @@ class ChatArea(QWidget):
         text,
         message_type="normal"
     ):
+        """
+        Add a Drax message.
+
+        Removes the thinking indicator first.
+        """
 
         self.hide_typing()
 
@@ -829,16 +674,20 @@ class ChatArea(QWidget):
         )
 
         self.scroll_to_bottom(
-            delay=35
+            delay=40
         )
 
         return bubble
 
     # ============================================================
-    # CLEAR CHAT
+    # CLEAR
     # ============================================================
 
     def clear(self):
+        """
+        Clear conversation history while preserving
+        the conversation column and bottom anchor.
+        """
 
         self.hide_typing()
 
@@ -846,8 +695,8 @@ class ChatArea(QWidget):
             animated=False
         )
 
+        # Remove every actual message.
         while self.messages.count() > 1:
-
             item = self.messages.takeAt(
                 0
             )
@@ -855,14 +704,19 @@ class ChatArea(QWidget):
             widget = item.widget()
 
             if widget is not None:
-
-                widget.setGraphicsEffect(
-                    None
-                )
+                try:
+                    widget.setGraphicsEffect(
+                        None
+                    )
+                except RuntimeError:
+                    pass
 
                 widget.deleteLater()
 
         self.welcome_bubble = None
+
+        self.conversation.updateGeometry()
+        self.container.updateGeometry()
 
         QTimer.singleShot(
             30,
@@ -874,6 +728,11 @@ class ChatArea(QWidget):
     # ============================================================
 
     def show_typing(self):
+        """
+        Show the stable 'Drax is thinking...' bubble.
+
+        The bubble itself does not move.
+        """
 
         self.hide_typing(
             animate=False
@@ -889,78 +748,23 @@ class ChatArea(QWidget):
             self.typing
         )
 
-        self.typing_effect = (
-            QGraphicsOpacityEffect(
-                self.typing.message
-            )
-        )
-
-        self.typing_effect.setOpacity(
-            theme.THINKING_OPACITY_MIN
-        )
-
-        self.typing.message.setGraphicsEffect(
-            self.typing_effect
-        )
-
-        self.typing_animation = (
-            QPropertyAnimation(
-                self.typing_effect,
-                b"opacity",
-                self
-            )
-        )
-
-        self.typing_animation.setDuration(
-            900
-        )
-
-        self.typing_animation.setStartValue(
-            theme.THINKING_OPACITY_MIN
-        )
-
-        self.typing_animation.setEndValue(
-            theme.THINKING_OPACITY_MAX
-        )
-
-        self.typing_animation.setEasingCurve(
-            QEasingCurve.InOutSine
-        )
-
-        self.typing_animation.setLoopCount(
-            -1
-        )
-
-        self.typing_animation.start()
-
         self.scroll_to_bottom(
-            delay=20
+            delay=25
         )
 
     # ============================================================
-    # HIDE THINKING
+    # HIDE THINKING INDICATOR
     # ============================================================
 
     def hide_typing(
         self,
         animate=False
     ):
+        """
+        Remove the thinking indicator.
 
-        if self.typing_animation is not None:
-
-            self.typing_animation.stop()
-
-            self.typing_animation.deleteLater()
-
-            self.typing_animation = None
-
-        if self.typing_effect is not None:
-
-            self.typing_effect.setOpacity(
-                1.0
-            )
-
-            self.typing_effect = None
+        'animate' remains for compatibility.
+        """
 
         if self.typing is None:
             return
@@ -969,30 +773,12 @@ class ChatArea(QWidget):
 
         self.typing = None
 
-        if hasattr(
-            bubble,
-            "message"
-        ):
-
-            bubble.message.setGraphicsEffect(
-                None
-            )
-
-        if animate:
-
-            self.fade_out_and_remove(
-                bubble,
-                duration=120
-            )
-
-        else:
-
-            self._remove_widget(
-                bubble
-            )
+        self._remove_widget(
+            bubble
+        )
 
     # ============================================================
-    # FADE OUT
+    # OPTIONAL FADE OUT
     # ============================================================
 
     def fade_out_and_remove(
@@ -1000,6 +786,9 @@ class ChatArea(QWidget):
         widget,
         duration=120
     ):
+        """
+        Optional helper for transient widgets.
+        """
 
         if widget is None:
             return
@@ -1043,16 +832,17 @@ class ChatArea(QWidget):
         )
 
         def finish():
-
             if animation in self.animations:
-
                 self.animations.remove(
                     animation
                 )
 
-            widget.setGraphicsEffect(
-                None
-            )
+            try:
+                widget.setGraphicsEffect(
+                    None
+                )
+            except RuntimeError:
+                return
 
             widget.deleteLater()
 
@@ -1063,6 +853,35 @@ class ChatArea(QWidget):
         animation.start()
 
     # ============================================================
+    # RESIZE
+    # ============================================================
+
+    def resizeEvent(
+        self,
+        event
+    ):
+        """
+        Keep the conversation centered and responsive.
+
+        Large windows use the theme-defined maximum width.
+        Smaller windows naturally consume the available width.
+        """
+
+        super().resizeEvent(
+            event
+        )
+
+        self.container.updateGeometry()
+        self.conversation.updateGeometry()
+
+        QTimer.singleShot(
+            0,
+            lambda: self.scroll_to_bottom(
+                delay=0
+            )
+        )
+
+    # ============================================================
     # CLEANUP
     # ============================================================
 
@@ -1070,17 +889,17 @@ class ChatArea(QWidget):
         self,
         event
     ):
+        if self._scroll_timer is not None:
+            self._scroll_timer.stop()
+            self._scroll_timer = None
 
         if self.typing_animation is not None:
-
             self.typing_animation.stop()
-
             self.typing_animation = None
 
         for animation in list(
             self.animations
         ):
-
             animation.stop()
 
         self.animations.clear()

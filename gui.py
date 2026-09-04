@@ -72,6 +72,13 @@ class Worker(QObject):
 
         try:
 
+            # Keep event-bus work off the Qt GUI thread. Some subscribers
+            # may perform non-trivial work while a command is being sent.
+            bus.emit(
+                "message",
+                self.command
+            )
+
             response = drax.chat(
                 self.command
             )
@@ -149,12 +156,11 @@ class Worker(QObject):
 
 
             # -------------------------------------------------
-            # Truly empty response
+            # No conversational response
             # -------------------------------------------------
-
-            self.response_ready.emit(
-                "Sorry, couldn't generate a response for that. Try again."
-            )
+            # Some commands perform their work successfully and intentionally
+            # return no chat text. Do not manufacture a failure message.
+            return
 
 
         except Exception as error:
@@ -1040,11 +1046,6 @@ class DraxWindow(QWidget):
 
         self.thread.start()
 
-        bus.emit(
-            "message",
-            command
-        )
-
 
     # =================================
     # OUTPUT
@@ -1135,8 +1136,13 @@ class DraxWindow(QWidget):
             )
 
             self.status_bar.finish_message(
+                text="✓" + text,
                 delay=1200
             )
+
+            # Safety net: the command result is transient and must not remain
+            # visible indefinitely if the status-bar animation is interrupted.
+            QTimer.singleShot(1500, self.status_bar.finish_message)
 
             return
 

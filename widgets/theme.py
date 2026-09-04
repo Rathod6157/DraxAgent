@@ -7,7 +7,7 @@ Central visual system for the Drax desktop application.
 This file contains visual constants only.
 No application logic belongs here.
 
-The goal:
+Design goals:
     Clean
     Restrained
     Modern
@@ -80,8 +80,31 @@ DRAX_TEXT = "#F2F2F2"
 
 STATUS_BUBBLE = "#20242B"
 
-CONVERSATION_MAX_WIDTH = 1180
-CONVERSATION_SIDE_PADDING = 28
+
+# ============================================================
+# CONVERSATION LAYOUT
+# ============================================================
+
+# The conversation should use most of the available window
+# without becoming edge-to-edge.
+#
+# Previous value:
+#     1180
+#
+# New value:
+#     1500
+#
+# This dramatically reduces the excessive empty space on
+# large/maximized windows while keeping the conversation
+# centered and visually contained.
+
+CONVERSATION_MAX_WIDTH = 1500
+
+# Inner breathing room between the conversation column
+# and the actual message rows.
+
+CONVERSATION_SIDE_PADDING = 24
+
 
 # ============================================================
 # CHAT MESSAGE WIDTHS
@@ -231,11 +254,7 @@ INPUT_SPACING = 12
 
 # Drax's visual identity.
 #
-# The actual logo artwork should be supplied by the UI/logo
-# widget rather than represented by an emoji.
-#
-# Keep these values here so every part of the application
-# uses the same identity settings.
+# The actual logo artwork is supplied by the UI/logo widget.
 
 LOGO_SIZE = 34
 LOGO_SMALL_SIZE = 26
@@ -256,10 +275,8 @@ APP_SUBTITLE = "Your desktop AI companion"
 # ICONS
 # ============================================================
 
-# Drax no longer uses the robot emoji as its identity.
-#
-# These are retained only for semantic/status icons where
-# appropriate.
+# Drax uses the actual geometric logo asset.
+# No robot emoji.
 
 DRAX_ICON = "assets/drax_logo.png"
 
@@ -290,9 +307,6 @@ THINKING_OPACITY_MAX = 1.0
 # ============================================================
 # ANIMATION
 # ============================================================
-
-# Short UI transitions should feel responsive rather than
-# sluggish.
 
 FADE_DURATION = 180
 
@@ -349,4 +363,4 @@ FONT_BOLD = 700
 
 THEME_NAME = "Drax Dark"
 
-THEME_VERSION = "2.0"
+THEME_VERSION = "2.1"
