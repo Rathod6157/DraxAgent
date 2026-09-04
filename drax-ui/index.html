@@ -1,43 +1,296 @@
 <!doctype html>
 <html lang="en">
+
   <head>
+
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="/src/styles.css" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri App</title>
-    <script type="module" src="/src/main.ts" defer></script>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+
+    <meta
+      name="theme-color"
+      content="#17181C"
+    />
+
+    <title>Drax — Desktop AI Companion</title>
+
+    <script
+      type="module"
+      src="/src/main.ts"
+      defer
+    ></script>
+
   </head>
 
+
   <body>
-    <main class="container">
-      <h1>Welcome to Tauri</h1>
 
-      <div class="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/src/assets/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img
-            src="/src/assets/tauri.svg"
-            class="logo tauri"
-            alt="Tauri logo"
-          />
-        </a>
-        <a href="https://www.typescriptlang.org/docs" target="_blank">
-          <img
-            src="/src/assets/typescript.svg"
-            class="logo typescript"
-            alt="typescript logo"
-          />
-        </a>
+    <div id="app">
+
+
+      <!-- =====================================================
+           HEADER
+           ===================================================== -->
+
+      <header class="app-header">
+
+        <div class="brand">
+
+          <div class="brand-logo">
+
+            <img
+              src="/src/assets/drax_logo.png"
+              alt="Drax"
+            />
+
+          </div>
+
+
+          <div class="brand-copy">
+
+            <div class="brand-name">
+              Drax
+            </div>
+
+            <div class="brand-subtitle">
+              Your desktop AI companion
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="presence">
+
+          <span class="presence-dot"></span>
+
+          <span class="presence-label">
+            Online
+          </span>
+
+        </div>
+
+      </header>
+
+
+      <!-- =====================================================
+           MAIN
+           ===================================================== -->
+
+      <main class="app-main">
+
+
+        <!-- ===================================================
+             ACTIVITY
+             =================================================== -->
+
+        <section class="activity-card">
+
+          <div class="activity-top">
+
+            <div class="activity-heading">
+
+              <span class="activity-pulse"></span>
+
+              <span>CURRENTLY</span>
+
+            </div>
+
+
+            <span class="activity-live">
+              LIVE
+            </span>
+
+          </div>
+
+
+          <div class="activity-content">
+
+            <div class="activity-icon">
+              ◈
+            </div>
+
+
+            <div class="activity-details">
+
+              <div
+                class="activity-title"
+                id="activity-title"
+              >
+                Ready
+              </div>
+
+
+              <div
+                class="activity-application"
+                id="activity-application"
+              >
+                Waiting for your command
+              </div>
+
+            </div>
+
+
+            <div
+              class="activity-time"
+              id="activity-time"
+            >
+              Just now
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- ===================================================
+             CHAT
+             =================================================== -->
+
+        <section
+          class="chat-shell"
+          aria-label="Drax conversation"
+        >
+
+          <div
+            class="conversation"
+            id="conversation"
+          >
+
+
+            <!-- =================================================
+                 WELCOME MESSAGE
+                 ================================================= -->
+
+            <article class="message-row drax-row">
+
+              <div class="message drax-message welcome-message">
+
+                <div class="message-header">
+
+                  <div class="message-avatar">
+
+                    <img
+                      src="/src/assets/drax_logo.png"
+                      alt=""
+                    />
+
+                  </div>
+
+
+                  <span class="message-sender">Drax</span>
+
+                  <span class="message-time">Now</span>
+
+                </div>
+
+
+                <div class="message-text">Hey! I'm Drax. What can I do for you?</div>
+
+
+                <div class="suggestions">
+
+                  <button
+                    class="suggestion"
+                    data-command="Open Chrome"
+                  >
+                    Open Chrome
+                  </button>
+
+
+                  <button
+                    class="suggestion"
+                    data-command="What can you do?"
+                  >
+                    What can you do?
+                  </button>
+
+
+                  <button
+                    class="suggestion"
+                    data-command="Show my activity"
+                  >
+                    Show my activity
+                  </button>
+
+                </div>
+
+              </div>
+
+            </article>
+
+          </div>
+
+        </section>
+
+
+        <!-- ===================================================
+             INPUT
+             =================================================== -->
+
+        <section class="input-area">
+
+          <form
+            class="composer"
+            id="command-form"
+          >
+
+            <input
+              id="command-input"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Ask Drax anything..."
+              aria-label="Message Drax"
+            />
+
+
+            <button
+              class="send-button"
+              type="submit"
+              aria-label="Send message"
+            >
+
+              <span>➤</span>
+
+            </button>
+
+          </form>
+
+
+          <div class="input-hint">
+            Press Enter to send
+          </div>
+
+        </section>
+
+      </main>
+
+
+      <!-- =====================================================
+           STATUS TOAST
+           ===================================================== -->
+
+      <div
+        class="status-toast"
+        id="status-toast"
+        aria-live="polite"
+      >
+
+        <span class="status-toast-dot"></span>
+
+        <span id="status-text">
+          Ready
+        </span>
+
       </div>
-      <p>Click on the Tauri logo to learn more about the framework</p>
 
-      <form class="row" id="greet-form">
-        <input id="greet-input" placeholder="Enter a name..." />
-        <button type="submit">Greet</button>
-      </form>
-      <p id="greet-msg"></p>
-    </main>
+    </div>
+
   </body>
+
 </html>
