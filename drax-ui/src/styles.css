@@ -851,7 +851,7 @@ input {
   opacity: 1;
 
   transform:
-    translate(-50%, 0);
+    translateY(0);
 }
 
 .status-toast-dot {
@@ -954,5 +954,24 @@ input {
 @media (min-width: 1400px) {
   :root {
     --conversation-width: 1040px;
+  }
+}
+
+/* =========================================================
+   THINKING TEXT
+   ========================================================= */
+
+.thinking-text {
+  animation: thinking-text-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes thinking-text-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
   }
 }

@@ -2,105 +2,334 @@ import "./styles.css";
 
 import draxLogo from "./assets/drax_logo.png";
 
-type Sender = "drax" | "user";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
-const conversation = document.querySelector<HTMLDivElement>(
-  "#conversation",
-);
 
-const form = document.querySelector<HTMLFormElement>(
-  "#command-form",
-);
+type Sender =
+  | "drax"
+  | "user";
 
-const input = document.querySelector<HTMLInputElement>(
-  "#command-input",
-);
 
-const activityTitle = document.querySelector<HTMLDivElement>(
-  "#activity-title",
-);
+type DraxEvent = {
+  type: string;
 
-const activityApplication = document.querySelector<HTMLDivElement>(
-  "#activity-application",
-);
+  text?: string;
+  value?: boolean;
+  message_type?: string;
 
-const activityTime = document.querySelector<HTMLDivElement>(
-  "#activity-time",
-);
+  activity?: string;
+  confidence?: number;
+  application?: string;
+  process?: string;
+  window?: string;
+  started_at?: number;
+  context?: string;
+  visual_context?: unknown;
 
-const statusToast = document.querySelector<HTMLDivElement>(
-  "#status-toast",
-);
-
-const statusText = document.querySelector<HTMLSpanElement>(
-  "#status-text",
-);
+  source?: string;
+};
 
 
 /* =========================================================
-   HELPERS
+   DOM
+   ========================================================= */
+
+const conversation =
+  document.querySelector<HTMLDivElement>(
+    "#conversation"
+  );
+
+const form =
+  document.querySelector<HTMLFormElement>(
+    "#command-form"
+  );
+
+const input =
+  document.querySelector<HTMLInputElement>(
+    "#command-input"
+  );
+
+const sendButton =
+  document.querySelector<HTMLButtonElement>(
+    ".send-button"
+  );
+
+const activityTitle =
+  document.querySelector<HTMLDivElement>(
+    "#activity-title"
+  );
+
+const activityApplication =
+  document.querySelector<HTMLDivElement>(
+    "#activity-application"
+  );
+
+const activityTime =
+  document.querySelector<HTMLDivElement>(
+    "#activity-time"
+  );
+
+const statusToast =
+  document.querySelector<HTMLDivElement>(
+    "#status-toast"
+  );
+
+const statusText =
+  document.querySelector<HTMLSpanElement>(
+    "#status-text"
+  );
+
+
+/* =========================================================
+   STATE
+   ========================================================= */
+
+let busy = false;
+
+let statusTimer:
+  number | undefined;
+
+let activityStartedAt:
+  number | undefined;
+
+let activityTimer:
+  number | undefined;
+
+
+/* =========================================================
+   SCROLL
    ========================================================= */
 
 function scrollToBottom(): void {
+
   if (!conversation) {
     return;
   }
 
-  requestAnimationFrame(() => {
-    conversation.scrollTo({
-      top: conversation.scrollHeight,
-      behavior: "smooth",
-    });
-  });
+  requestAnimationFrame(
+    () => {
+
+      /*
+       * Immediate scrolling keeps message insertion stable.
+       * Smooth scrolling during every DOM mutation was helping
+       * create the old jump/disappear/reappear effect.
+       */
+      conversation.scrollTop =
+        conversation.scrollHeight;
+
+    }
+  );
 }
 
 
+/* =========================================================
+   STATUS TOAST
+   ========================================================= */
+
 function showStatus(
-  message: string,
+  text: string,
   duration = 1400,
 ): void {
-  if (!statusToast || !statusText) {
+
+  if (
+    !statusToast ||
+    !statusText
+  ) {
     return;
   }
 
-  statusText.textContent = message;
+  if (
+    statusTimer !== undefined
+  ) {
 
-  statusToast.classList.add("visible");
+    window.clearTimeout(
+      statusTimer
+    );
+  }
 
-  window.setTimeout(() => {
-    statusToast.classList.remove("visible");
-  }, duration);
+  statusText.textContent =
+    text;
+
+  statusToast.classList.add(
+    "visible"
+  );
+
+  statusTimer =
+    window.setTimeout(
+      () => {
+
+        statusToast.classList.remove(
+          "visible"
+        );
+
+      },
+      duration
+    );
+}
+
+
+/* =========================================================
+   ACTIVITY CARD
+   ========================================================= */
+
+function formatElapsed(
+  startedAt: number,
+): string {
+
+  /*
+   * Python time.time() is seconds since Unix epoch.
+   * Accept milliseconds too so this stays tolerant of future
+   * protocol changes.
+   */
+  const startedMilliseconds =
+    startedAt < 10_000_000_000
+      ? startedAt * 1000
+      : startedAt;
+
+  const elapsedSeconds =
+    Math.max(
+      0,
+      Math.floor(
+        (
+          Date.now()
+          - startedMilliseconds
+        ) / 1000
+      )
+    );
+
+  if (
+    elapsedSeconds < 5
+  ) {
+    return "Just now";
+  }
+
+  if (
+    elapsedSeconds < 60
+  ) {
+    return `${elapsedSeconds}s`;
+  }
+
+  const minutes =
+    Math.floor(
+      elapsedSeconds / 60
+    );
+
+  const seconds =
+    elapsedSeconds % 60;
+
+  if (
+    minutes < 60
+  ) {
+
+    return seconds === 0
+      ? `${minutes}m`
+      : `${minutes}m ${seconds}s`;
+  }
+
+  const hours =
+    Math.floor(
+      minutes / 60
+    );
+
+  const remainingMinutes =
+    minutes % 60;
+
+  return remainingMinutes === 0
+    ? `${hours}h`
+    : `${hours}h ${remainingMinutes}m`;
+}
+
+
+function renderActivityTime(): void {
+
+  if (
+    !activityTime
+    || activityStartedAt === undefined
+  ) {
+    return;
+  }
+
+  activityTime.textContent =
+    formatElapsed(
+      activityStartedAt
+    );
+}
+
+
+function startActivityTimer(): void {
+
+  if (
+    activityTimer !== undefined
+  ) {
+
+    window.clearInterval(
+      activityTimer
+    );
+  }
+
+  activityTimer =
+    window.setInterval(
+      renderActivityTime,
+      1000
+    );
 }
 
 
 function updateActivity(
-  title: string,
+  activity: string,
   application: string,
+  startedAt?: number,
 ): void {
+
   if (activityTitle) {
-    activityTitle.textContent = title;
+
+    activityTitle.textContent =
+      activity || "Unknown";
   }
 
   if (activityApplication) {
-    activityApplication.textContent = application;
+
+    activityApplication.textContent =
+      application || "Unknown";
+  }
+
+  if (
+    startedAt !== undefined
+    && Number.isFinite(startedAt)
+  ) {
+
+    activityStartedAt =
+      startedAt;
+
+    renderActivityTime();
+
+    startActivityTimer();
+
+    return;
   }
 
   if (activityTime) {
-    activityTime.textContent = "Just now";
+
+    activityTime.textContent =
+      "Just now";
   }
 }
 
 
 /* =========================================================
-   MESSAGE BUILDING
+   MESSAGE CREATION
    ========================================================= */
 
 function createElement(
   tag: string,
   className: string,
 ): HTMLElement {
+
   const element =
-    document.createElement(tag);
+    document.createElement(
+      tag
+    );
 
   element.className =
     className;
@@ -113,17 +342,21 @@ function createMessage(
   sender: Sender,
   text: string,
 ): HTMLElement {
+
   const row =
-    document.createElement("article");
+    document.createElement(
+      "article"
+    );
 
   row.className =
     sender === "drax"
       ? "message-row drax-row"
       : "message-row user-row";
 
-
   const message =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   message.className =
     sender === "drax"
@@ -131,27 +364,27 @@ function createMessage(
       : "message user-message";
 
 
-  /* -------------------------------------------------------
-     HEADER
-     ------------------------------------------------------- */
-
   const header =
     createElement(
       "div",
-      "message-header",
+      "message-header"
     );
 
 
-  if (sender === "drax") {
+  if (
+    sender === "drax"
+  ) {
 
     const avatar =
       createElement(
         "div",
-        "message-avatar",
+        "message-avatar"
       );
 
     const image =
-      document.createElement("img");
+      document.createElement(
+        "img"
+      );
 
     image.src =
       draxLogo;
@@ -160,11 +393,11 @@ function createMessage(
       "";
 
     avatar.appendChild(
-      image,
+      image
     );
 
     header.appendChild(
-      avatar,
+      avatar
     );
   }
 
@@ -172,7 +405,7 @@ function createMessage(
   const senderLabel =
     createElement(
       "span",
-      "message-sender",
+      "message-sender"
     );
 
   senderLabel.textContent =
@@ -184,7 +417,7 @@ function createMessage(
   const timeLabel =
     createElement(
       "span",
-      "message-time",
+      "message-time"
     );
 
   timeLabel.textContent =
@@ -192,51 +425,34 @@ function createMessage(
 
 
   header.appendChild(
-    senderLabel,
+    senderLabel
   );
 
   header.appendChild(
-    timeLabel,
+    timeLabel
   );
 
-
-  /* -------------------------------------------------------
-     MESSAGE TEXT
-     ------------------------------------------------------- */
 
   const messageText =
     createElement(
       "div",
-      "message-text",
+      "message-text"
     );
 
-  /*
-   * IMPORTANT:
-   *
-   * Use textContent instead of inserting the text into
-   * an indented HTML template.
-   *
-   * This completely eliminates accidental leading spaces
-   * and newlines from our source-code formatting.
-   */
   messageText.textContent =
     text;
 
 
-  /* -------------------------------------------------------
-     ASSEMBLE
-     ------------------------------------------------------- */
-
   message.appendChild(
-    header,
+    header
   );
 
   message.appendChild(
-    messageText,
+    messageText
   );
 
   row.appendChild(
-    message,
+    message
   );
 
   return row;
@@ -247,15 +463,19 @@ function addMessage(
   sender: Sender,
   text: string,
 ): void {
-  if (!conversation) {
+
+  if (
+    !conversation
+    || !text.trim()
+  ) {
     return;
   }
 
   conversation.appendChild(
     createMessage(
       sender,
-      text,
-    ),
+      text
+    )
   );
 
   scrollToBottom();
@@ -267,6 +487,7 @@ function addMessage(
    ========================================================= */
 
 function showThinking(): void {
+
   if (!conversation) {
     return;
   }
@@ -275,7 +496,9 @@ function showThinking(): void {
 
 
   const row =
-    document.createElement("article");
+    document.createElement(
+      "article"
+    );
 
   row.className =
     "message-row drax-row";
@@ -285,30 +508,36 @@ function showThinking(): void {
 
 
   const message =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   message.className =
     "message drax-message thinking-message";
 
 
-  /* Header */
-
   const header =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   header.className =
     "message-header";
 
 
   const avatar =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   avatar.className =
     "message-avatar";
 
 
   const image =
-    document.createElement("img");
+    document.createElement(
+      "img"
+    );
 
   image.src =
     draxLogo;
@@ -316,18 +545,19 @@ function showThinking(): void {
   image.alt =
     "";
 
-
   avatar.appendChild(
-    image,
+    image
   );
 
   header.appendChild(
-    avatar,
+    avatar
   );
 
 
   const senderLabel =
-    document.createElement("span");
+    document.createElement(
+      "span"
+    );
 
   senderLabel.className =
     "message-sender";
@@ -335,70 +565,81 @@ function showThinking(): void {
   senderLabel.textContent =
     "Drax";
 
-
   header.appendChild(
-    senderLabel,
+    senderLabel
   );
 
 
-  /* Thinking content */
-
   const thinkingContent =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   thinkingContent.className =
     "thinking-content";
 
 
   const thinkingText =
-    document.createElement("span");
+    document.createElement(
+      "span"
+    );
+
+  thinkingText.className =
+    "thinking-text";
 
   thinkingText.textContent =
     "Drax is thinking";
 
 
   const dots =
-    document.createElement("span");
+    document.createElement(
+      "span"
+    );
 
   dots.className =
     "thinking-dots";
 
 
-  for (let i = 0; i < 3; i += 1) {
+  for (
+    let i = 0;
+    i < 3;
+    i += 1
+  ) {
+
     const dot =
-      document.createElement("span");
+      document.createElement(
+        "span"
+      );
 
     dots.appendChild(
-      dot,
+      dot
     );
   }
 
 
   thinkingContent.appendChild(
-    thinkingText,
+    thinkingText
   );
 
   thinkingContent.appendChild(
-    dots,
+    dots
   );
 
 
-  /* Assemble */
-
   message.appendChild(
-    header,
+    header
   );
 
   message.appendChild(
-    thinkingContent,
+    thinkingContent
   );
 
   row.appendChild(
-    message,
+    message
   );
 
   conversation.appendChild(
-    row,
+    row
   );
 
   scrollToBottom();
@@ -406,85 +647,58 @@ function showThinking(): void {
 
 
 function removeThinking(): void {
+
   document
-    .querySelector("#thinking-row")
+    .querySelector(
+      "#thinking-row"
+    )
     ?.remove();
 }
 
 
 /* =========================================================
-   DEMO RESPONSE
+   COMPOSER STATE
    ========================================================= */
 
-/*
- * Frontend-only demo.
- *
- * Python is still disconnected.
- * We will replace this with the Tauri <-> Python bridge
- * later.
- */
-
-function simulateResponse(
-  command: string,
+function setBusy(
+  value: boolean,
 ): void {
-  showThinking();
 
-  window.setTimeout(() => {
+  busy =
+    value;
 
-    removeThinking();
+  if (input) {
 
-    const normalized =
-      command
-        .trim()
-        .toLowerCase();
+    input.disabled =
+      value;
+  }
 
+  if (sendButton) {
 
-    let response =
-      "I'm ready. My Python brain isn't connected to this new interface yet — that's our next phase.";
-
-
-    if (
-      normalized.includes("chrome")
-    ) {
-
-      response =
-        "Chrome command received. The new UI will hand this to the existing Drax backend once we connect the bridge.";
-
-    } else if (
-      normalized.includes("hello") ||
-      normalized === "hi" ||
-      normalized === "hey"
-    ) {
-
-      response =
-        "Heyyy 😎 I'm alive. The new Drax body is officially online.";
-
-    } else if (
-      normalized.includes("what can you do")
-    ) {
-
-      response =
-        "Soon? Pretty much everything your existing Drax brain already knows how to do. We're just giving it a much better face.";
-    }
+    sendButton.disabled =
+      value;
+  }
+}
 
 
-    addMessage(
-      "drax",
-      response,
-    );
+/* =========================================================
+   COMMAND FINISHED
+   ========================================================= */
 
+function finishCommand(): void {
 
-    updateActivity(
-      "Conversing",
-      "Drax",
-    );
+  removeThinking();
 
+  setBusy(
+    false
+  );
 
-    showStatus(
-      "Response ready",
-    );
+  /*
+   * The Activity Card represents the desktop, not the chat
+   * command lifecycle. Never replace it with "Ready" here.
+   */
 
-  }, 900);
+  input?.focus();
 }
 
 
@@ -492,46 +706,75 @@ function simulateResponse(
    SEND
    ========================================================= */
 
-function sendCommand(
+async function sendCommand(
   command: string,
-): void {
+): Promise<void> {
 
   const text =
     command.trim();
 
-
-  if (!text) {
+  if (
+    !text
+    || busy
+  ) {
     return;
   }
 
 
   addMessage(
     "user",
-    text,
-  );
-
-
-  updateActivity(
-    "Processing",
-    "Drax",
+    text
   );
 
 
   showStatus(
     "Thinking...",
-    1000,
+    1800
+  );
+
+  showThinking();
+
+  setBusy(
+    true
   );
 
 
   if (input) {
-    input.value = "";
-    input.focus();
+
+    input.value =
+      "";
   }
 
 
-  simulateResponse(
-    text,
-  );
+  try {
+
+    await invoke(
+      "send_to_drax",
+      {
+        message: text,
+      }
+    );
+
+  } catch (error) {
+
+    removeThinking();
+
+    setBusy(
+      false
+    );
+
+    showStatus(
+      "Bridge error",
+      1800
+    );
+
+    addMessage(
+      "drax",
+      `Something went wrong: ${String(error)}`
+    );
+
+    input?.focus();
+  }
 }
 
 
@@ -545,10 +788,10 @@ form?.addEventListener(
 
     event.preventDefault();
 
-    sendCommand(
-      input?.value ?? "",
+    void sendCommand(
+      input?.value ?? ""
     );
-  },
+  }
 );
 
 
@@ -558,34 +801,327 @@ form?.addEventListener(
 
 document
   .querySelectorAll<HTMLButtonElement>(
-    ".suggestion",
+    ".suggestion"
   )
-  .forEach((button) => {
+  .forEach(
+    (button) => {
 
-    button.addEventListener(
-      "click",
-      () => {
+      button.addEventListener(
+        "click",
+        () => {
 
-        const command =
-          button.dataset.command ?? "";
+          const command =
+            button.dataset.command
+              ?? "";
 
-        sendCommand(
-          command,
+          void sendCommand(
+            command
+          );
+        }
+      );
+
+    }
+  );
+
+
+/* =========================================================
+   PYTHON EVENTS
+   ========================================================= */
+
+void listen<DraxEvent>(
+  "drax://message",
+  (event) => {
+
+    const message =
+      event.payload;
+
+
+    switch (
+      message.type
+    ) {
+
+      case "ready":
+
+        showStatus(
+          "Drax is ready",
+          1000
         );
-      },
-    );
-  });
+
+        console.log(
+          "Drax Python bridge ready."
+        );
+
+        break;
+
+
+      case "typing":
+
+        if (
+          message.value
+        ) {
+
+          showThinking();
+
+        } else {
+
+          removeThinking();
+        }
+
+        break;
+
+
+      case "status":
+
+        if (
+          message.text
+        ) {
+
+          showStatus(
+            message.text,
+            1800
+          );
+        }
+
+        break;
+
+
+      /* ---------------------------------------------------
+         LIVE DESKTOP ACTIVITY
+         --------------------------------------------------- */
+
+      case "activity_updated":
+
+        updateActivity(
+          message.activity
+            ?? "Unknown",
+          message.application
+            ?? "Unknown",
+          message.started_at
+        );
+
+        break;
+
+
+      /* ---------------------------------------------------
+         TERMINAL / SKILL OUTPUT
+         --------------------------------------------------- */
+
+      case "output": {
+
+        const kind =
+          message.message_type
+            ?? "assistant";
+
+        const text =
+          message.text
+            ?? "";
+
+        if (
+          !text.trim()
+        ) {
+          break;
+        }
+
+
+        if (
+          kind === "assistant"
+        ) {
+
+          removeThinking();
+
+          addMessage(
+            "drax",
+            text
+          );
+
+          showStatus(
+            "Response ready",
+            900
+          );
+
+          finishCommand();
+
+          break;
+        }
+
+
+        if (
+          kind === "status"
+        ) {
+
+          showStatus(
+            text,
+            1800
+          );
+
+          break;
+        }
+
+
+        if (
+          kind === "status_done"
+        ) {
+
+          showStatus(
+            text,
+            900
+          );
+
+          finishCommand();
+
+          break;
+        }
+
+
+        if (
+          kind === "success"
+        ) {
+
+          removeThinking();
+
+          addMessage(
+            "drax",
+            `✅ ${text}`
+          );
+
+          showStatus(
+            `✓ ${text}`,
+            1200
+          );
+
+          finishCommand();
+
+          break;
+        }
+
+
+        if (
+          kind === "error"
+        ) {
+
+          removeThinking();
+
+          addMessage(
+            "drax",
+            `❌ ${text}`
+          );
+
+          showStatus(
+            "Something went wrong",
+            1800
+          );
+
+          finishCommand();
+
+          break;
+        }
+
+
+        addMessage(
+          "drax",
+          text
+        );
+
+        break;
+      }
+
+
+      case "assistant_message":
+
+        removeThinking();
+
+        if (
+          message.text
+        ) {
+
+          addMessage(
+            "drax",
+            message.text
+          );
+        }
+
+        showStatus(
+          "Response ready",
+          900
+        );
+
+        finishCommand();
+
+        break;
+
+
+      case "status_done":
+
+        showStatus(
+          message.text
+            ?? "Done",
+          900
+        );
+
+        finishCommand();
+
+        break;
+
+
+      case "exit_requested":
+
+        showStatus(
+          "Goodbye",
+          1000
+        );
+
+        finishCommand();
+
+        break;
+
+
+      case "error":
+
+        removeThinking();
+
+        addMessage(
+          "drax",
+          `❌ ${
+            message.text
+              ?? "Unknown error"
+          }`
+        );
+
+        showStatus(
+          "Something went wrong",
+          1800
+        );
+
+        setBusy(
+          false
+        );
+
+        input?.focus();
+
+        break;
+
+
+      default:
+
+        console.log(
+          "Unknown Drax event:",
+          message
+        );
+
+        break;
+    }
+  }
+);
 
 
 /* =========================================================
    STARTUP
    ========================================================= */
 
-if (input) {
-  input.focus();
-}
+startActivityTimer();
 
+input?.focus();
 
 console.log(
-  "Drax UI initialized.",
+  "Drax UI initialized."
 );
