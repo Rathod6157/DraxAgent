@@ -8,9 +8,10 @@ from terminal import (
     status_done_print,
 )
 
+from response_utils import classify_response
 
 NAME = "Close Application"
-INTENT = "close"
+INTENT = "close_app"
 DESCRIPTION = "Closes running applications."
 VERSION = "1.1"
 AUTHOR = "Harshith"
@@ -191,21 +192,19 @@ def handle_pending_response(
     user_input
 ):
 
-    response = user_input.lower().strip()
+    decision = classify_response(
+        user_input,
+        context=(
+            f"whether to close the application "
+            f"{pending.get('app_name', 'the application')}"
+        )
+    )
 
     # ---------------------------------
     # Cancel
     # ---------------------------------
 
-    if response in {
-        "cancel",
-        "stop",
-        "nevermind",
-        "never mind",
-        "no",
-        "n",
-        "nope"
-    }:
+    if decision == "cancel":
 
         safe_print(
             "👍 Okay, close operation cancelled."
@@ -214,24 +213,21 @@ def handle_pending_response(
         return None
 
     # ---------------------------------
-    # Invalid response
+    # Invalid
     # ---------------------------------
 
-    if response not in {
-        "yes",
-        "y",
-        "yeah",
-        "yep",
-        "sure",
-        "okay",
-        "ok"
-    }:
+    if decision == "invalid":
 
         safe_print(
-            "🤖 Please answer yes or no."
+            "🤖 I didn't catch that. "
+            "Please tell me whether to continue or cancel."
         )
 
         return pending
+
+    # ---------------------------------
+    # Confirm
+    # ---------------------------------
 
     processes = pending["processes"]
 
@@ -246,14 +242,23 @@ def handle_pending_response(
     for process_name in processes:
 
         subprocess.run(
-            ["taskkill", "/IM", process_name, "/F"],
+            [
+                "taskkill",
+                "/IM",
+                process_name,
+                "/F"
+            ],
             capture_output=True,
             text=True
         )
 
-        time.sleep(0.5)
+        time.sleep(
+            0.5
+        )
 
-        if is_process_running(process_name):
+        if is_process_running(
+            process_name
+        ):
 
             status_done_print(
                 f"❌ Couldn't close {process_name}."
@@ -266,7 +271,6 @@ def handle_pending_response(
             )
 
             closed_any = True
-
 
     if closed_any:
 
@@ -281,7 +285,6 @@ def handle_pending_response(
         )
 
     return None
-
 
 def execute(task):
 

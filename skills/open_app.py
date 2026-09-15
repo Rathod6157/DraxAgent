@@ -1,5 +1,8 @@
 import os
 import subprocess
+import winreg
+import ctypes
+from ctypes import wintypes
 
 from terminal import (
     safe_print,
@@ -11,13 +14,251 @@ from terminal import (
 from resolver import decide_application
 from brain.execution_result import ExecutionResult
 
+from response_utils import classify_response
 
 NAME = "Open Application"
 INTENT = "open_app"
 DESCRIPTION = "Launches desktop applications."
-VERSION = "1.4"
+VERSION = "1.6"
 AUTHOR = "Harshith"
 
+
+# ============================================================
+# CHROME DISCOVERY
+# ============================================================
+
+def find_chrome_executable():
+    """
+    Dynamically locate Google Chrome through the Windows registry.
+
+    No user-specific paths are hardcoded.
+    """
+
+    registry_locations = [
+        (
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+        ),
+        (
+            winreg.HKEY_LOCAL_MACHINE,
+            r"Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
+        ),
+    ]
+
+    for hive, key_path in registry_locations:
+
+        try:
+
+            with winreg.OpenKey(
+                hive,
+                key_path
+            ) as key:
+
+                executable = winreg.QueryValue(
+                    key,
+                    None
+                )
+
+                if executable and os.path.isfile(executable):
+                    return executable
+
+        except (
+            FileNotFoundError,
+            OSError
+        ):
+            continue
+
+    return None
+
+
+def is_chrome_running():
+    """
+    Check whether Chrome is currently running.
+
+    Uses Windows task information rather than a hardcoded
+    process/window path.
+    """
+
+    try:
+
+        result = subprocess.run(
+            [
+                "tasklist",
+                "/FI",
+                "IMAGENAME eq chrome.exe"
+            ],
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+
+        return "chrome.exe" in result.stdout.lower()
+
+    except Exception:
+        return False
+
+
+def focus_chrome_window():
+    """
+    Bring an existing visible Chrome window to the foreground.
+
+    Returns True if a Chrome window was successfully found.
+    """
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    EnumWindowsProc = ctypes.WINFUNCTYPE(
+        wintypes.BOOL,
+        wintypes.HWND,
+        wintypes.LPARAM
+    )
+
+    found_window = None
+
+    def enum_window_callback(hwnd, _):
+
+        nonlocal found_window
+
+        if found_window:
+            return False
+
+        # Ignore invisible windows.
+        if not user32.IsWindowVisible(hwnd):
+            return True
+
+        # Get owning process ID.
+        process_id = wintypes.DWORD()
+
+        user32.GetWindowThreadProcessId(
+            hwnd,
+            ctypes.byref(process_id)
+        )
+
+        if not process_id.value:
+            return True
+
+        # Open the process so we can inspect its executable name.
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+        process_handle = kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION,
+            False,
+            process_id.value
+        )
+
+        if not process_handle:
+            return True
+
+        try:
+
+            buffer_size = wintypes.DWORD(260)
+
+            buffer = ctypes.create_unicode_buffer(
+                buffer_size.value
+            )
+
+            success = kernel32.QueryFullProcessImageNameW(
+                process_handle,
+                0,
+                buffer,
+                ctypes.byref(buffer_size)
+            )
+
+            if not success:
+                return True
+
+            executable_name = os.path.basename(
+                buffer.value
+            ).lower()
+
+            if executable_name != "chrome.exe":
+                return True
+
+            found_window = hwnd
+
+            return False
+
+        finally:
+
+            kernel32.CloseHandle(
+                process_handle
+            )
+
+    callback = EnumWindowsProc(
+        enum_window_callback
+    )
+
+    user32.EnumWindows(
+        callback,
+        0
+    )
+
+    if not found_window:
+        return False
+
+    # Restore the window if minimized.
+    SW_RESTORE = 9
+
+    user32.ShowWindow(
+        found_window,
+        SW_RESTORE
+    )
+
+    # Bring Chrome to the foreground.
+    user32.SetForegroundWindow(
+        found_window
+    )
+
+    return True
+
+
+def launch_chrome():
+    """
+    Open Google Chrome intelligently.
+
+    If Chrome is already running:
+        Bring an existing Chrome window to the foreground.
+
+    If Chrome is not running:
+        Launch Chrome using its dynamically discovered executable.
+
+    No Chrome profile is selected or hardcoded.
+    """
+
+    # --------------------------------------------------------
+    # Chrome already running
+    # --------------------------------------------------------
+
+    if is_chrome_running():
+
+        if focus_chrome_window():
+            return True
+
+    # --------------------------------------------------------
+    # Chrome is not running
+    # --------------------------------------------------------
+
+    executable = find_chrome_executable()
+
+    if not executable:
+        return False
+
+    subprocess.Popen(
+        [
+            executable
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL
+    )
+
+    return True
+
+
+# ============================================================
+# APPLICATION LAUNCHER
+# ============================================================
 
 def launch_application(match):
 
@@ -27,47 +268,70 @@ def launch_application(match):
 
     try:
 
-        # ---------------------------------
-        # Start Menu applications
-        # ---------------------------------
+        # ========================================================
+        # GOOGLE CHROME
+        # ========================================================
 
-        if source == "start_menu":
+        if app_name.lower().strip() == "google chrome":
+
+            if not launch_chrome():
+
+                raise RuntimeError(
+                    "Google Chrome could not be launched."
+                )
+
+
+        # ========================================================
+        # START MENU APPLICATION
+        # ========================================================
+
+        elif source == "start_menu":
 
             os.startfile(
                 launch_target
             )
 
-        # ---------------------------------
-        # Windows Store / packaged apps
-        # ---------------------------------
+
+        # ========================================================
+        # WINDOWS PACKAGED APPLICATION
+        # ========================================================
 
         elif source == "windows_app":
 
-            subprocess.Popen(
-                [
-                    "explorer.exe",
-                    f"shell:AppsFolder\\{launch_target}"
-                ]
+            import ctypes
+
+            result = ctypes.windll.shell32.ShellExecuteW(
+                None,
+                "open",
+                f"shell:AppsFolder\\{launch_target}",
+                None,
+                None,
+                1
             )
 
-        # ---------------------------------
-        # Unknown source
-        # ---------------------------------
+            # ShellExecuteW returns a value <= 32 on failure.
+            if result <= 32:
+
+                raise RuntimeError(
+                    f"Windows could not launch the application "
+                    f"(error code {result})."
+                )
+
+
+        # ========================================================
+        # UNKNOWN SOURCE
+        # ========================================================
 
         else:
 
-            safe_print(
-                f"❌ Unknown application source: '{source}'."
+            raise RuntimeError(
+                f"Unknown application source: '{source}'."
             )
 
-            return ExecutionResult(
-                handled=True,
-                success=False
-            )
 
-        # ---------------------------------
-        # Report success
-        # ---------------------------------
+        # ========================================================
+        # REPORT SUCCESS
+        # ========================================================
 
         status_print(
             f"🚀 Opening {app_name}..."
@@ -82,6 +346,7 @@ def launch_application(match):
             success=True
         )
 
+
     except Exception as error:
 
         error_print(
@@ -95,13 +360,18 @@ def launch_application(match):
         )
 
 
+# ============================================================
+# PENDING RESPONSE HANDLER
+# ============================================================
+
 def handle_pending_response(
     pending,
     user_input
 ):
 
-    response = user_input.lower().strip()
-
+    response = classify_response(
+        user_input
+    )
     cancel_words = {
         "cancel",
         "stop",
@@ -241,6 +511,10 @@ def handle_pending_response(
     return None
 
 
+# ============================================================
+# SKILL EXECUTION
+# ============================================================
+
 def execute(task):
 
     data = task.data or {}
@@ -280,8 +554,8 @@ def execute(task):
         )
 
     # ---------------------------------
-    # Application found, but confirmation
-    # is required.
+    # Application found, confirmation
+    # is required
     # ---------------------------------
 
     if status == "confirm":
@@ -343,10 +617,6 @@ def execute(task):
 
     # ---------------------------------
     # Application NOT found
-    #
-    # IMPORTANT:
-    # Never silently turn an app request
-    # into a web request.
     # ---------------------------------
 
     if status == "not_found":
