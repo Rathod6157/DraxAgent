@@ -110,18 +110,30 @@
 
           <div class="activity-content">
 
-            <div class="activity-icon">
-              ◈
+            <div class="activity-icon" aria-hidden="true">
+              <span class="activity-icon-core">◈</span>
+              <span class="activity-icon-ring"></span>
             </div>
 
 
             <div class="activity-details">
 
-              <div
-                class="activity-title"
-                id="activity-title"
-              >
-                Ready
+              <div class="activity-title-row">
+
+                <div
+                  class="activity-title"
+                  id="activity-title"
+                >
+                  Ready
+                </div>
+
+                <span
+                  class="activity-state"
+                  id="activity-state"
+                >
+                  LIVE
+                </span>
+
               </div>
 
 
@@ -129,17 +141,39 @@
                 class="activity-application"
                 id="activity-application"
               >
-                Waiting for your command
+                Waiting for desktop activity
+              </div>
+
+
+              <div
+                class="activity-window"
+                id="activity-window"
+              >
+                Desktop
               </div>
 
             </div>
 
 
-            <div
-              class="activity-time"
-              id="activity-time"
-            >
-              Just now
+            <div class="activity-metrics">
+
+              <div class="activity-duration"
+                   id="activity-time">
+                Just now
+              </div>
+
+              <div class="activity-confidence-row">
+                <span>CONFIDENCE</span>
+                <span id="activity-confidence">—</span>
+              </div>
+
+              <div class="activity-confidence-track">
+                <div
+                  class="activity-confidence-fill"
+                  id="activity-confidence-fill"
+                ></div>
+              </div>
+
             </div>
 
           </div>

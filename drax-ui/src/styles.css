@@ -226,28 +226,62 @@ input {
    ========================================================= */
 
 .activity-card {
+  position: relative;
+  isolation: isolate;
+
   width: min(
     calc(100% - 48px),
     var(--conversation-width)
   );
 
   margin: 18px auto 8px;
+  padding: 15px 17px 16px;
 
-  padding: 15px 18px;
+  overflow: hidden;
 
-  border-radius: var(--radius-lg);
+  border-radius: 22px;
 
   background:
-    linear-gradient(
-      145deg,
-      rgba(32, 34, 40, 0.96),
-      rgba(28, 30, 35, 0.96)
+    linear-gradient(135deg,
+      rgba(35, 39, 48, 0.78),
+      rgba(24, 27, 34, 0.72) 58%,
+      rgba(38, 43, 54, 0.68)
     );
 
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.085);
 
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    0 18px 55px rgba(0, 0, 0, 0.20),
+    0 0 0 1px rgba(76, 141, 255, 0.025);
+
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.activity-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+
+  background:
+    radial-gradient(
+      circle at 12% 50%,
+      rgba(76, 141, 255, 0.16),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 88% 0%,
+      rgba(104, 164, 255, 0.08),
+      transparent 30%
+    );
+
+  pointer-events: none;
 }
 
 .activity-top {
@@ -263,85 +297,212 @@ input {
   align-items: center;
   gap: 8px;
 
-  color: var(--text-secondary);
+  color: #8d96a6;
 
-  font-size: 10px;
-  font-weight: 700;
-
-  letter-spacing: 0.12em;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
 }
 
 .activity-pulse {
+  position: relative;
   width: 6px;
   height: 6px;
 
   border-radius: 50%;
-
   background: var(--accent);
 
   box-shadow:
-    0 0 10px rgba(76, 141, 255, 0.6);
+    0 0 0 4px rgba(76, 141, 255, 0.07),
+    0 0 14px rgba(76, 141, 255, 0.70);
 
   animation: activity-pulse 1.8s ease-in-out infinite;
 }
 
 .activity-live {
-  color: #75808f;
+  padding: 4px 8px;
 
-  font-size: 9px;
-  font-weight: 700;
+  border-radius: 999px;
 
-  letter-spacing: 0.1em;
+  color: #7e8998;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
 }
 
 .activity-content {
-  display: flex;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
 }
 
 .activity-icon {
-  width: 34px;
-  height: 34px;
+  position: relative;
+  width: 46px;
+  height: 46px;
 
   display: grid;
   place-items: center;
 
+  border-radius: 15px;
+
+  color: #9ec0ff;
+
+  background:
+    linear-gradient(145deg,
+      rgba(76, 141, 255, 0.18),
+      rgba(76, 141, 255, 0.055)
+    );
+
+  border: 1px solid rgba(113, 164, 255, 0.18);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 26px rgba(0, 0, 0, 0.15),
+    0 0 22px rgba(76, 141, 255, 0.08);
+}
+
+.activity-icon-core {
+  position: relative;
+  z-index: 2;
+
+  font-size: 19px;
+  text-shadow: 0 0 15px rgba(116, 171, 255, 0.65);
+}
+
+.activity-icon-ring {
+  position: absolute;
+  inset: 9px;
+
+  border: 1px solid rgba(140, 186, 255, 0.16);
   border-radius: 10px;
 
-  color: #8bb5ff;
-
-  background: rgba(76, 141, 255, 0.08);
-
-  border: 1px solid rgba(76, 141, 255, 0.10);
+  animation: activity-ring 2.8s ease-in-out infinite;
 }
 
 .activity-details {
   min-width: 0;
-  flex: 1;
+}
+
+.activity-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .activity-title {
-  font-size: 13px;
-  font-weight: 600;
+  min-width: 0;
 
-  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 16px;
+  font-weight: 720;
+  letter-spacing: -0.015em;
+
+  color: #f4f6fa;
+}
+
+.activity-state {
+  flex: 0 0 auto;
+
+  padding: 3px 6px;
+  border-radius: 999px;
+
+  color: #78e6a5;
+  background: rgba(89, 217, 142, 0.065);
+  border: 1px solid rgba(89, 217, 142, 0.10);
+
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+}
+
+.activity-state.is-observing {
+  color: #8bb5ff;
+  background: rgba(76, 141, 255, 0.07);
+  border-color: rgba(76, 141, 255, 0.11);
+
+  animation: observing-breathe 1.2s ease-in-out infinite;
 }
 
 .activity-application {
-  margin-top: 2px;
+  margin-top: 3px;
 
-  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
+  color: #aeb6c2;
   font-size: 11px;
+  font-weight: 550;
 }
 
-.activity-time {
-  color: var(--text-muted);
+.activity-window {
+  margin-top: 3px;
 
-  font-size: 10px;
-
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+
+  color: #656f7e;
+  font-size: 9px;
+}
+
+.activity-metrics {
+  width: 160px;
+  min-width: 140px;
+}
+
+.activity-duration {
+  text-align: right;
+
+  color: #c0c7d1;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.activity-confidence-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  margin-top: 8px;
+
+  color: #687281;
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+}
+
+.activity-confidence-track {
+  width: 100%;
+  height: 3px;
+  margin-top: 5px;
+
+  overflow: hidden;
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.activity-confidence-fill {
+  width: 0%;
+  height: 100%;
+
+  border-radius: inherit;
+
+  background: linear-gradient(90deg, #4c8dff, #7fb0ff);
+
+  box-shadow: 0 0 10px rgba(76, 141, 255, 0.45);
+
+  transition: width 260ms ease;
 }
 
 
@@ -882,13 +1043,37 @@ input {
 @keyframes activity-pulse {
   0%,
   100% {
-    opacity: 0.45;
-    transform: scale(0.9);
+    opacity: 0.48;
+    transform: scale(0.90);
   }
 
   50% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes activity-ring {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+}
+
+@keyframes observing-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
   }
 }
 
@@ -949,29 +1134,23 @@ input {
   .activity-card {
     margin-top: 12px;
   }
+
+  .activity-content {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .activity-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .activity-metrics {
+    display: none;
+  }
 }
 
 @media (min-width: 1400px) {
   :root {
     --conversation-width: 1040px;
-  }
-}
-
-/* =========================================================
-   THINKING TEXT
-   ========================================================= */
-
-.thinking-text {
-  animation: thinking-text-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes thinking-text-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-
-  50% {
-    opacity: 1;
   }
 }

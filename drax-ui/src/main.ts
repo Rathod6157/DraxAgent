@@ -12,10 +12,13 @@ type Sender =
 
 
 type DraxEvent = {
+
   type: string;
 
   text?: string;
+
   value?: boolean;
+
   message_type?: string;
 
   activity?: string;
@@ -26,8 +29,8 @@ type DraxEvent = {
   started_at?: number;
   context?: string;
   visual_context?: unknown;
+  observed_at?: number;
 
-  source?: string;
 };
 
 
@@ -40,40 +43,72 @@ const conversation =
     "#conversation"
   );
 
+
 const form =
   document.querySelector<HTMLFormElement>(
     "#command-form"
   );
+
 
 const input =
   document.querySelector<HTMLInputElement>(
     "#command-input"
   );
 
+
 const sendButton =
   document.querySelector<HTMLButtonElement>(
     ".send-button"
   );
+
 
 const activityTitle =
   document.querySelector<HTMLDivElement>(
     "#activity-title"
   );
 
+
 const activityApplication =
   document.querySelector<HTMLDivElement>(
     "#activity-application"
   );
+
 
 const activityTime =
   document.querySelector<HTMLDivElement>(
     "#activity-time"
   );
 
+
+const activityWindow =
+  document.querySelector<HTMLDivElement>(
+    "#activity-window"
+  );
+
+
+const activityConfidence =
+  document.querySelector<HTMLDivElement>(
+    "#activity-confidence"
+  );
+
+
+const activityConfidenceFill =
+  document.querySelector<HTMLDivElement>(
+    "#activity-confidence-fill"
+  );
+
+
+const activityState =
+  document.querySelector<HTMLSpanElement>(
+    "#activity-state"
+  );
+
+
 const statusToast =
   document.querySelector<HTMLDivElement>(
     "#status-toast"
   );
+
 
 const statusText =
   document.querySelector<HTMLSpanElement>(
@@ -96,6 +131,9 @@ let activityStartedAt:
 let activityTimer:
   number | undefined;
 
+let lastActivityApplication =
+  "";
+
 
 /* =========================================================
    SCROLL
@@ -110,13 +148,13 @@ function scrollToBottom(): void {
   requestAnimationFrame(
     () => {
 
-      /*
-       * Immediate scrolling keeps message insertion stable.
-       * Smooth scrolling during every DOM mutation was helping
-       * create the old jump/disappear/reappear effect.
-       */
-      conversation.scrollTop =
-        conversation.scrollHeight;
+      conversation.scrollTo({
+        top:
+          conversation.scrollHeight,
+
+        behavior:
+          "smooth",
+      });
 
     }
   );
@@ -139,6 +177,7 @@ function showStatus(
     return;
   }
 
+
   if (
     statusTimer !== undefined
   ) {
@@ -148,12 +187,15 @@ function showStatus(
     );
   }
 
+
   statusText.textContent =
     text;
+
 
   statusToast.classList.add(
     "visible"
   );
+
 
   statusTimer =
     window.setTimeout(
@@ -170,18 +212,13 @@ function showStatus(
 
 
 /* =========================================================
-   ACTIVITY CARD
+   ACTIVITY
    ========================================================= */
 
 function formatElapsed(
   startedAt: number,
 ): string {
 
-  /*
-   * Python time.time() is seconds since Unix epoch.
-   * Accept milliseconds too so this stays tolerant of future
-   * protocol changes.
-   */
   const startedMilliseconds =
     startedAt < 10_000_000_000
       ? startedAt * 1000
@@ -191,49 +228,29 @@ function formatElapsed(
     Math.max(
       0,
       Math.floor(
-        (
-          Date.now()
-          - startedMilliseconds
-        ) / 1000
+        (Date.now() - startedMilliseconds) / 1000
       )
     );
 
-  if (
-    elapsedSeconds < 5
-  ) {
+  if (elapsedSeconds < 5) {
     return "Just now";
   }
 
-  if (
-    elapsedSeconds < 60
-  ) {
+  if (elapsedSeconds < 60) {
     return `${elapsedSeconds}s`;
   }
 
-  const minutes =
-    Math.floor(
-      elapsedSeconds / 60
-    );
+  const minutes = Math.floor(elapsedSeconds / 60);
 
-  const seconds =
-    elapsedSeconds % 60;
-
-  if (
-    minutes < 60
-  ) {
-
+  if (minutes < 60) {
+    const seconds = elapsedSeconds % 60;
     return seconds === 0
       ? `${minutes}m`
       : `${minutes}m ${seconds}s`;
   }
 
-  const hours =
-    Math.floor(
-      minutes / 60
-    );
-
-  const remainingMinutes =
-    minutes % 60;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
 
   return remainingMinutes === 0
     ? `${hours}h`
@@ -251,21 +268,14 @@ function renderActivityTime(): void {
   }
 
   activityTime.textContent =
-    formatElapsed(
-      activityStartedAt
-    );
+    formatElapsed(activityStartedAt);
 }
 
 
 function startActivityTimer(): void {
 
-  if (
-    activityTimer !== undefined
-  ) {
-
-    window.clearInterval(
-      activityTimer
-    );
+  if (activityTimer !== undefined) {
+    window.clearInterval(activityTimer);
   }
 
   activityTimer =
@@ -276,67 +286,120 @@ function startActivityTimer(): void {
 }
 
 
-function updateActivity(
-  activity: string,
-  application: string,
-  startedAt?: number,
+function updateConfidence(
+  confidence?: number,
 ): void {
 
-  if (activityTitle) {
-
-    activityTitle.textContent =
-      activity || "Unknown";
-  }
-
-  if (activityApplication) {
-
-    activityApplication.textContent =
-      application || "Unknown";
-  }
-
-  if (
-    startedAt !== undefined
-    && Number.isFinite(startedAt)
-  ) {
-
-    activityStartedAt =
-      startedAt;
-
-    renderActivityTime();
-
-    startActivityTimer();
-
+  if (!activityConfidence || !activityConfidenceFill) {
     return;
   }
 
-  if (activityTime) {
-
-    activityTime.textContent =
-      "Just now";
+  if (
+    confidence === undefined
+    || !Number.isFinite(confidence)
+  ) {
+    activityConfidence.textContent = "—";
+    activityConfidenceFill.style.width = "0%";
+    return;
   }
+
+  const value = Math.max(0, Math.min(100, Math.round(confidence)));
+
+  activityConfidence.textContent = `${value}%`;
+  activityConfidenceFill.style.width = `${value}%`;
+}
+
+
+function cleanWindowTitle(
+  value: string,
+): string {
+
+  const text = value.trim();
+
+  if (!text) {
+    return "Desktop";
+  }
+
+  return text.length > 96
+    ? `${text.slice(0, 93)}…`
+    : text;
+}
+
+
+function updateActivity(
+  title: string,
+  application: string,
+  startedAt?: number,
+  windowTitle?: string,
+  confidence?: number,
+  refined = true,
+): void {
+
+  if (activityTitle) {
+    activityTitle.textContent = title || "Unknown";
+  }
+
+  if (activityApplication) {
+    activityApplication.textContent = application || "Unknown";
+  }
+
+  if (activityWindow) {
+    activityWindow.textContent =
+      cleanWindowTitle(windowTitle || "");
+  }
+
+  if (activityState) {
+    activityState.textContent =
+      refined ? "ANALYZED" : "OBSERVING";
+
+    activityState.classList.toggle(
+      "is-observing",
+      !refined
+    );
+  }
+
+  if (startedAt !== undefined && Number.isFinite(startedAt)) {
+    activityStartedAt = startedAt;
+    renderActivityTime();
+    startActivityTimer();
+  } else if (activityTime) {
+    activityTime.textContent = "Just now";
+  }
+
+  updateConfidence(confidence);
+}
+
+
+function updateActivityContext(
+  application: string,
+  windowTitle: string,
+  observedAt?: number,
+): void {
+
+  const safeApplication =
+    application || "Unknown application";
+
+  lastActivityApplication =
+    safeApplication;
+
+  const startedAt =
+    observedAt
+    ?? Date.now() / 1000;
+
+  updateActivity(
+    `Using ${safeApplication}`,
+    safeApplication,
+    startedAt,
+    windowTitle,
+    undefined,
+    false
+  );
 }
 
 
 /* =========================================================
    MESSAGE CREATION
    ========================================================= */
-
-function createElement(
-  tag: string,
-  className: string,
-): HTMLElement {
-
-  const element =
-    document.createElement(
-      tag
-    );
-
-  element.className =
-    className;
-
-  return element;
-}
-
 
 function createMessage(
   sender: Sender,
@@ -348,15 +411,18 @@ function createMessage(
       "article"
     );
 
+
   row.className =
     sender === "drax"
       ? "message-row drax-row"
       : "message-row user-row";
 
+
   const message =
     document.createElement(
       "div"
     );
+
 
   message.className =
     sender === "drax"
@@ -364,11 +430,18 @@ function createMessage(
       : "message user-message";
 
 
+  /* -------------------------------------------------------
+     HEADER
+     ------------------------------------------------------- */
+
   const header =
-    createElement(
-      "div",
-      "message-header"
+    document.createElement(
+      "div"
     );
+
+
+  header.className =
+    "message-header";
 
 
   if (
@@ -376,25 +449,33 @@ function createMessage(
   ) {
 
     const avatar =
-      createElement(
-        "div",
-        "message-avatar"
+      document.createElement(
+        "div"
       );
+
+
+    avatar.className =
+      "message-avatar";
+
 
     const image =
       document.createElement(
         "img"
       );
 
+
     image.src =
       draxLogo;
+
 
     image.alt =
       "";
 
+
     avatar.appendChild(
       image
     );
+
 
     header.appendChild(
       avatar
@@ -403,10 +484,14 @@ function createMessage(
 
 
   const senderLabel =
-    createElement(
-      "span",
-      "message-sender"
+    document.createElement(
+      "span"
     );
+
+
+  senderLabel.className =
+    "message-sender";
+
 
   senderLabel.textContent =
     sender === "drax"
@@ -415,10 +500,14 @@ function createMessage(
 
 
   const timeLabel =
-    createElement(
-      "span",
-      "message-time"
+    document.createElement(
+      "span"
     );
+
+
+  timeLabel.className =
+    "message-time";
+
 
   timeLabel.textContent =
     "Now";
@@ -428,36 +517,56 @@ function createMessage(
     senderLabel
   );
 
+
   header.appendChild(
     timeLabel
   );
 
 
+  /* -------------------------------------------------------
+     TEXT
+     ------------------------------------------------------- */
+
   const messageText =
-    createElement(
-      "div",
-      "message-text"
+    document.createElement(
+      "div"
     );
+
+
+  messageText.className =
+    "message-text";
+
 
   messageText.textContent =
     text;
 
 
+  /* -------------------------------------------------------
+     ASSEMBLE
+     ------------------------------------------------------- */
+
   message.appendChild(
     header
   );
+
 
   message.appendChild(
     messageText
   );
 
+
   row.appendChild(
     message
   );
 
+
   return row;
 }
 
+
+/* =========================================================
+   ADD MESSAGE
+   ========================================================= */
 
 function addMessage(
   sender: Sender,
@@ -465,11 +574,12 @@ function addMessage(
 ): void {
 
   if (
-    !conversation
-    || !text.trim()
+    !conversation ||
+    !text.trim()
   ) {
     return;
   }
+
 
   conversation.appendChild(
     createMessage(
@@ -477,6 +587,7 @@ function addMessage(
       text
     )
   );
+
 
   scrollToBottom();
 }
@@ -492,6 +603,7 @@ function showThinking(): void {
     return;
   }
 
+
   removeThinking();
 
 
@@ -500,8 +612,10 @@ function showThinking(): void {
       "article"
     );
 
+
   row.className =
     "message-row drax-row";
+
 
   row.id =
     "thinking-row";
@@ -512,14 +626,20 @@ function showThinking(): void {
       "div"
     );
 
+
   message.className =
     "message drax-message thinking-message";
 
+
+  /* -------------------------------------------------------
+     HEADER
+     ------------------------------------------------------- */
 
   const header =
     document.createElement(
       "div"
     );
+
 
   header.className =
     "message-header";
@@ -530,6 +650,7 @@ function showThinking(): void {
       "div"
     );
 
+
   avatar.className =
     "message-avatar";
 
@@ -539,15 +660,19 @@ function showThinking(): void {
       "img"
     );
 
+
   image.src =
     draxLogo;
+
 
   image.alt =
     "";
 
+
   avatar.appendChild(
     image
   );
+
 
   header.appendChild(
     avatar
@@ -559,21 +684,29 @@ function showThinking(): void {
       "span"
     );
 
+
   senderLabel.className =
     "message-sender";
 
+
   senderLabel.textContent =
     "Drax";
+
 
   header.appendChild(
     senderLabel
   );
 
 
+  /* -------------------------------------------------------
+     THINKING CONTENT
+     ------------------------------------------------------- */
+
   const thinkingContent =
     document.createElement(
       "div"
     );
+
 
   thinkingContent.className =
     "thinking-content";
@@ -584,8 +717,6 @@ function showThinking(): void {
       "span"
     );
 
-  thinkingText.className =
-    "thinking-text";
 
   thinkingText.textContent =
     "Drax is thinking";
@@ -595,6 +726,7 @@ function showThinking(): void {
     document.createElement(
       "span"
     );
+
 
   dots.className =
     "thinking-dots";
@@ -611,6 +743,7 @@ function showThinking(): void {
         "span"
       );
 
+
     dots.appendChild(
       dot
     );
@@ -621,30 +754,43 @@ function showThinking(): void {
     thinkingText
   );
 
+
   thinkingContent.appendChild(
     dots
   );
 
 
+  /* -------------------------------------------------------
+     ASSEMBLE
+     ------------------------------------------------------- */
+
   message.appendChild(
     header
   );
+
 
   message.appendChild(
     thinkingContent
   );
 
+
   row.appendChild(
     message
   );
+
 
   conversation.appendChild(
     row
   );
 
+
   scrollToBottom();
 }
 
+
+/* =========================================================
+   REMOVE THINKING
+   ========================================================= */
 
 function removeThinking(): void {
 
@@ -661,17 +807,19 @@ function removeThinking(): void {
    ========================================================= */
 
 function setBusy(
-  value: boolean,
+  value: boolean
 ): void {
 
   busy =
     value;
+
 
   if (input) {
 
     input.disabled =
       value;
   }
+
 
   if (sendButton) {
 
@@ -689,13 +837,16 @@ function finishCommand(): void {
 
   removeThinking();
 
+
   setBusy(
     false
   );
 
+
   /*
-   * The Activity Card represents the desktop, not the chat
-   * command lifecycle. Never replace it with "Ready" here.
+   * The activity card represents the desktop, not the
+   * conversation lifecycle. Never overwrite it with
+   * "Ready" after a command finishes.
    */
 
   input?.focus();
@@ -713,17 +864,32 @@ async function sendCommand(
   const text =
     command.trim();
 
+
   if (
-    !text
-    || busy
+    !text ||
+    busy
   ) {
     return;
   }
 
 
+  /* -------------------------------------------------------
+     USER MESSAGE
+     ------------------------------------------------------- */
+
   addMessage(
     "user",
     text
+  );
+
+
+  /* -------------------------------------------------------
+     ACTIVITY
+     ------------------------------------------------------- */
+
+  updateActivity(
+    "Processing",
+    "Drax"
   );
 
 
@@ -732,12 +898,17 @@ async function sendCommand(
     1800
   );
 
+
+  /* -------------------------------------------------------
+     THINKING
+     ------------------------------------------------------- */
+
   showThinking();
 
-  setBusy(
-    true
-  );
 
+  /* -------------------------------------------------------
+     INPUT
+     ------------------------------------------------------- */
 
   if (input) {
 
@@ -746,12 +917,21 @@ async function sendCommand(
   }
 
 
+  setBusy(
+    true
+  );
+
+
+  /* -------------------------------------------------------
+     SEND TO PYTHON
+     ------------------------------------------------------- */
+
   try {
 
     await invoke(
       "send_to_drax",
       {
-        message: text,
+        message: text
       }
     );
 
@@ -759,19 +939,29 @@ async function sendCommand(
 
     removeThinking();
 
+
     setBusy(
       false
     );
+
+
+    updateActivity(
+      "Error",
+      "Drax bridge"
+    );
+
 
     showStatus(
       "Bridge error",
       1800
     );
 
+
     addMessage(
       "drax",
       `Something went wrong: ${String(error)}`
     );
+
 
     input?.focus();
   }
@@ -787,6 +977,7 @@ form?.addEventListener(
   (event) => {
 
     event.preventDefault();
+
 
     void sendCommand(
       input?.value ?? ""
@@ -814,6 +1005,7 @@ document
             button.dataset.command
               ?? "";
 
+
           void sendCommand(
             command
           );
@@ -840,6 +1032,10 @@ void listen<DraxEvent>(
       message.type
     ) {
 
+      /* ---------------------------------------------------
+         READY
+         --------------------------------------------------- */
+
       case "ready":
 
         showStatus(
@@ -847,12 +1043,17 @@ void listen<DraxEvent>(
           1000
         );
 
+
         console.log(
           "Drax Python bridge ready."
         );
 
         break;
 
+
+      /* ---------------------------------------------------
+         THINKING
+         --------------------------------------------------- */
 
       case "typing":
 
@@ -870,6 +1071,10 @@ void listen<DraxEvent>(
         break;
 
 
+      /* ---------------------------------------------------
+         STATUS
+         --------------------------------------------------- */
+
       case "status":
 
         if (
@@ -886,24 +1091,40 @@ void listen<DraxEvent>(
 
 
       /* ---------------------------------------------------
-         LIVE DESKTOP ACTIVITY
+         INSTANT DESKTOP OBSERVATION
          --------------------------------------------------- */
 
-      case "activity_updated":
+      case "activity_context":
 
-        updateActivity(
-          message.activity
-            ?? "Unknown",
-          message.application
-            ?? "Unknown",
-          message.started_at
+        updateActivityContext(
+          message.application ?? "Unknown application",
+          message.window ?? "",
+          message.observed_at
         );
 
         break;
 
 
       /* ---------------------------------------------------
-         TERMINAL / SKILL OUTPUT
+         AI-REFINED DESKTOP ACTIVITY
+         --------------------------------------------------- */
+
+      case "activity_updated":
+
+        updateActivity(
+          message.activity ?? "Unknown",
+          message.application ?? "Unknown application",
+          message.started_at,
+          message.window ?? "",
+          message.confidence,
+          true
+        );
+
+        break;
+
+
+      /* ---------------------------------------------------
+         OUTPUT
          --------------------------------------------------- */
 
       case "output": {
@@ -912,16 +1133,20 @@ void listen<DraxEvent>(
           message.message_type
             ?? "assistant";
 
+
         const text =
           message.text
             ?? "";
 
-        if (
-          !text.trim()
-        ) {
+
+        if (!text.trim()) {
           break;
         }
 
+
+        /* -----------------------------------------------
+           ASSISTANT
+           ----------------------------------------------- */
 
         if (
           kind === "assistant"
@@ -929,21 +1154,35 @@ void listen<DraxEvent>(
 
           removeThinking();
 
+
           addMessage(
             "drax",
             text
           );
+
+
+          updateActivity(
+            "Conversing",
+            "Drax"
+          );
+
 
           showStatus(
             "Response ready",
             900
           );
 
+
           finishCommand();
+
 
           break;
         }
 
+
+        /* -----------------------------------------------
+           STATUS
+           ----------------------------------------------- */
 
         if (
           kind === "status"
@@ -954,9 +1193,14 @@ void listen<DraxEvent>(
             1800
           );
 
+
           break;
         }
 
+
+        /* -----------------------------------------------
+           STATUS DONE
+           ----------------------------------------------- */
 
         if (
           kind === "status_done"
@@ -967,11 +1211,17 @@ void listen<DraxEvent>(
             900
           );
 
+
           finishCommand();
+
 
           break;
         }
 
+
+        /* -----------------------------------------------
+           SUCCESS
+           ----------------------------------------------- */
 
         if (
           kind === "success"
@@ -979,21 +1229,35 @@ void listen<DraxEvent>(
 
           removeThinking();
 
+
           addMessage(
             "drax",
             `✅ ${text}`
           );
+
+
+          updateActivity(
+            "Completed",
+            "Drax"
+          );
+
 
           showStatus(
             `✓ ${text}`,
             1200
           );
 
+
           finishCommand();
+
 
           break;
         }
 
+
+        /* -----------------------------------------------
+           ERROR
+           ----------------------------------------------- */
 
         if (
           kind === "error"
@@ -1001,34 +1265,54 @@ void listen<DraxEvent>(
 
           removeThinking();
 
+
           addMessage(
             "drax",
             `❌ ${text}`
           );
+
+
+          updateActivity(
+            "Error",
+            "Drax"
+          );
+
 
           showStatus(
             "Something went wrong",
             1800
           );
 
+
           finishCommand();
+
 
           break;
         }
 
+
+        /* -----------------------------------------------
+           FALLBACK
+           ----------------------------------------------- */
 
         addMessage(
           "drax",
           text
         );
 
+
         break;
       }
 
 
+      /* ---------------------------------------------------
+         DIRECT ASSISTANT MESSAGE
+         --------------------------------------------------- */
+
       case "assistant_message":
 
         removeThinking();
+
 
         if (
           message.text
@@ -1040,15 +1324,28 @@ void listen<DraxEvent>(
           );
         }
 
+
+        updateActivity(
+          "Conversing",
+          "Drax"
+        );
+
+
         showStatus(
           "Response ready",
           900
         );
 
+
         finishCommand();
+
 
         break;
 
+
+      /* ---------------------------------------------------
+         COMMAND COMPLETE
+         --------------------------------------------------- */
 
       case "status_done":
 
@@ -1058,26 +1355,21 @@ void listen<DraxEvent>(
           900
         );
 
+
         finishCommand();
+
 
         break;
 
 
-      case "exit_requested":
-
-        showStatus(
-          "Goodbye",
-          1000
-        );
-
-        finishCommand();
-
-        break;
-
+      /* ---------------------------------------------------
+         ERROR
+         --------------------------------------------------- */
 
       case "error":
 
         removeThinking();
+
 
         addMessage(
           "drax",
@@ -1087,19 +1379,33 @@ void listen<DraxEvent>(
           }`
         );
 
+
+        updateActivity(
+          "Error",
+          "Drax bridge"
+        );
+
+
         showStatus(
           "Something went wrong",
           1800
         );
 
+
         setBusy(
           false
         );
 
+
         input?.focus();
+
 
         break;
 
+
+      /* ---------------------------------------------------
+         UNKNOWN
+         --------------------------------------------------- */
 
       default:
 
@@ -1120,7 +1426,11 @@ void listen<DraxEvent>(
 
 startActivityTimer();
 
-input?.focus();
+if (input) {
+
+  input.focus();
+}
+
 
 console.log(
   "Drax UI initialized."
