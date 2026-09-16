@@ -48,6 +48,16 @@
 
   --glow-blue: rgba(76, 141, 255, 0.42);
   --glow-blue-soft: rgba(76, 141, 255, 0.14);
+
+  /* Text hierarchy: avoid the "everything is the same gray" problem. */
+  --text-primary: #f5f7fb;
+  --text-bright: #e8edf6;
+  --text-secondary: #b5bfce;
+  --text-tertiary: #8d98a9;
+  --text-muted: #737e90;
+  --text-faint: #5f6979;
+  --accent-soft: #9fc1ff;
+  --success-bright: #8cebb1;
 }
 
 
@@ -68,13 +78,39 @@ body {
 }
 
 body {
+  position: relative;
+
   background:
     radial-gradient(
-      circle at 50% -20%,
-      rgba(76, 141, 255, 0.08),
-      transparent 40%
+      760px 420px at 50% -12%,
+      rgba(76, 141, 255, 0.11),
+      transparent 68%
+    ),
+    radial-gradient(
+      520px 360px at 100% 100%,
+      rgba(94, 70, 190, 0.045),
+      transparent 72%
     ),
     var(--bg);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.018),
+      transparent 18%,
+      transparent 82%,
+      rgba(76, 141, 255, 0.018)
+    );
+
+  mix-blend-mode: screen;
 }
 
 
@@ -127,9 +163,14 @@ input {
 
   padding: 0 28px;
 
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
 
-  background: rgba(23, 24, 28, 0.82);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(24, 26, 31, 0.90),
+      rgba(22, 24, 29, 0.72)
+    );
 
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -184,7 +225,8 @@ input {
 
 .brand-subtitle {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
 }
 
 .presence {
@@ -216,10 +258,11 @@ input {
 }
 
 .presence-label {
-  color: #b9c0c8;
+  color: #d2dae6;
 
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 650;
+  letter-spacing: 0.01em;
 }
 
 
@@ -342,6 +385,7 @@ input {
   animation: activity-change 340ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+
 .activity-top {
   display: flex;
   align-items: center;
@@ -355,10 +399,10 @@ input {
   align-items: center;
   gap: 8px;
 
-  color: #8d96a6;
+  color: #aab5c5;
 
   font-size: 9px;
-  font-weight: 750;
+  font-weight: 760;
   letter-spacing: 0.16em;
 }
 
@@ -382,8 +426,8 @@ input {
 
   border-radius: 999px;
 
-  color: #7e8998;
-  background: rgba(255, 255, 255, 0.035);
+  color: #b1bdcd;
+  background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.055);
 
   font-size: 8px;
@@ -408,12 +452,12 @@ input {
 
   border-radius: 15px;
 
-  color: #9ec0ff;
+  color: #b3ceff;
 
   background:
     linear-gradient(145deg,
-      rgba(76, 141, 255, 0.18),
-      rgba(76, 141, 255, 0.055)
+      rgba(76, 141, 255, 0.22),
+      rgba(76, 141, 255, 0.065)
     );
 
   border: 1px solid rgba(113, 164, 255, 0.18);
@@ -428,15 +472,31 @@ input {
   position: relative;
   z-index: 2;
 
+  display: grid;
+  place-items: center;
+
   font-size: 19px;
   text-shadow: 0 0 15px rgba(116, 171, 255, 0.65);
 }
 
+.activity-icon-core svg {
+  width: 20px;
+  height: 20px;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  filter: drop-shadow(0 0 8px rgba(112, 166, 255, 0.45));
+}
+
 .activity-icon-ring {
   position: absolute;
-  inset: 9px;
+  inset: 8px;
 
-  border: 1px solid rgba(140, 186, 255, 0.16);
+  border: 1px solid rgba(140, 186, 255, 0.18);
   border-radius: 10px;
 
   animation: activity-ring 2.8s ease-in-out infinite;
@@ -464,7 +524,7 @@ input {
   font-weight: 720;
   letter-spacing: -0.015em;
 
-  color: #f4f6fa;
+  color: var(--text-primary);
 }
 
 .activity-state {
@@ -497,9 +557,9 @@ input {
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  color: #aeb6c2;
+  color: #c0c9d6;
   font-size: 11px;
-  font-weight: 550;
+  font-weight: 560;
 }
 
 .activity-window {
@@ -509,7 +569,7 @@ input {
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  color: #656f7e;
+  color: #7d889a;
   font-size: 9px;
 }
 
@@ -521,9 +581,9 @@ input {
 .activity-duration {
   text-align: right;
 
-  color: #c0c7d1;
+  color: #d0d8e4;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .activity-confidence-row {
@@ -533,7 +593,7 @@ input {
 
   margin-top: 8px;
 
-  color: #687281;
+  color: #8793a5;
   font-size: 7px;
   font-weight: 750;
   letter-spacing: 0.11em;
@@ -556,7 +616,7 @@ input {
 
   border-radius: inherit;
 
-  background: linear-gradient(90deg, #4c8dff, #7fb0ff);
+  background: linear-gradient(90deg, #4c8dff, #8ab8ff);
 
   box-shadow: 0 0 10px rgba(76, 141, 255, 0.45);
 
@@ -667,14 +727,42 @@ input {
    ========================================================= */
 
 .drax-message {
-  background: var(--drax-bubble);
+  position: relative;
+  overflow: hidden;
 
-  border: 1px solid rgba(255, 255, 255, 0.045);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(39, 42, 49, 0.92),
+      rgba(34, 37, 44, 0.88)
+    );
+
+  border: 1px solid rgba(255, 255, 255, 0.055);
 
   border-top-left-radius: 7px;
 
   box-shadow:
-    0 6px 20px rgba(0, 0, 0, 0.10);
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 8px 24px rgba(0, 0, 0, 0.14);
+
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.drax-message:hover {
+  border-color: rgba(126, 166, 235, 0.16);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 10px 30px rgba(0, 0, 0, 0.17),
+    0 0 22px rgba(76, 141, 255, 0.035);
+
+  transform: translateY(-1px);
 }
 
 
@@ -683,14 +771,35 @@ input {
    ========================================================= */
 
 .user-message {
-  background: var(--user-bubble);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(57, 125, 246, 0.98),
+      rgba(48, 108, 220, 0.96)
+    );
 
-  border: 1px solid rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(137, 181, 255, 0.15);
 
   border-top-right-radius: 7px;
 
   box-shadow:
-    0 6px 20px rgba(52, 120, 246, 0.14);
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 8px 24px rgba(52, 120, 246, 0.16);
+
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.user-message:hover {
+  border-color: rgba(167, 201, 255, 0.22);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.085),
+    0 10px 28px rgba(52, 120, 246, 0.20);
+
+  transform: translateY(-1px);
 }
 
 
@@ -732,7 +841,7 @@ input {
 }
 
 .message-sender {
-  color: #cbd0d8;
+  color: #dce3ee;
 
   font-size: 10px;
   font-weight: 650;
@@ -741,7 +850,7 @@ input {
 }
 
 .message-time {
-  color: #737985;
+  color: #8994a5;
 
   font-size: 9px;
 
@@ -754,7 +863,7 @@ input {
 
 .user-message .message-sender,
 .user-message .message-time {
-  color: rgba(255, 255, 255, 0.70);
+  color: rgba(244, 248, 255, 0.82);
 }
 
 
@@ -832,8 +941,8 @@ input {
 
   border-radius: 999px;
 
-  color: #aeb5c0;
-  background: rgba(255, 255, 255, 0.025);
+  color: #bcc6d5;
+  background: rgba(255, 255, 255, 0.035);
 
   font-size: 10px;
 
@@ -870,7 +979,7 @@ input {
   align-items: center;
   gap: 8px;
 
-  color: #9da5b1;
+  color: #b7c1d0;
 
   font-size: 12px;
 }
@@ -969,7 +1078,7 @@ input {
 }
 
 #command-input::placeholder {
-  color: #7d838e;
+  color: #919baa;
 }
 
 .send-button {
@@ -1011,6 +1120,19 @@ input {
   transform: translateY(0) scale(0.96);
 }
 
+.send-button:focus-visible,
+.suggestion:focus-visible {
+  outline: 2px solid rgba(126, 174, 255, 0.72);
+  outline-offset: 3px;
+}
+
+.send-button:disabled {
+  cursor: default;
+  opacity: 0.62;
+  transform: none;
+  box-shadow: none;
+}
+
 .send-button span {
   transform: translateX(1px);
 }
@@ -1020,7 +1142,7 @@ input {
 
   text-align: center;
 
-  color: #555b67;
+  color: #6e798a;
 
   font-size: 9px;
 }
@@ -1054,7 +1176,7 @@ input {
 
   border: 1px solid rgba(255, 255, 255, 0.075);
 
-  color: #b9bec7;
+  color: #d1d9e5;
 
   font-size: 10px;
 

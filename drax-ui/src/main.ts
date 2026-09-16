@@ -282,6 +282,50 @@ function getStatusIcon(text: string): string {
     `;
   }
 
+  if (value.includes("timer") || value.includes("countdown") || value.includes("remind")) {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="13" r="7"></circle>
+        <path d="M9 3h6"></path>
+        <path d="M12 13V9.5"></path>
+        <path d="m12 13 2.5 1.5"></path>
+      </svg>
+    `;
+  }
+
+  if (value.includes("web") || value.includes("browser") || value.includes("chrome") || value.includes("edge")) {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5"></circle>
+        <circle cx="12" cy="12" r="3.2"></circle>
+        <path d="M12 3.5v5.3"></path>
+        <path d="M19.4 8.3 14.8 11"></path>
+      </svg>
+    `;
+  }
+
+  if (value.includes("application") || value.includes("app") || value.includes("program")) {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="4" width="16" height="16" rx="3"></rect>
+        <path d="M8 8h3v3H8z"></path>
+        <path d="M13 8h3"></path>
+        <path d="M13 11h3"></path>
+        <path d="M8 14h8"></path>
+        <path d="M8 17h5"></path>
+      </svg>
+    `;
+  }
+
+  if (value.includes("ready") || value.includes("done") || value.includes("complete") || value.includes("success")) {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5"></circle>
+        <path d="m8 12.2 2.5 2.5 5.5-6"></path>
+      </svg>
+    `;
+  }
+
   return `
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="m5 12 4.2 4.2L19 6.5"></path>
