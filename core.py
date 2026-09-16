@@ -24,6 +24,7 @@ from parser import (
 )
 
 from brain.ai.intent_router import intent_router
+from brain.awareness import awareness
 from open_target_resolver import resolve_open_target
 
 
@@ -161,14 +162,85 @@ def _understand_single(command: str) -> Task:
     )
 
 
+def _build_routing_context(
+    recent_conversation=None
+):
+    """
+    Build the lightweight context supplied to the intent router.
+
+    The router already accepts recent conversation as a list of
+    {role, content} records. We deliberately reuse that interface
+    instead of changing the router contract, which keeps the existing
+    routing pipeline stable.
+    """
+
+    # The router keeps the last 8 history records. Reserve one
+    # slot so desktop context cannot disappear when conversation
+    # history grows.
+    history = list(
+        recent_conversation
+        or []
+    )[-7:]
+
+    try:
+        snapshot = awareness.snapshot()
+    except Exception:
+        snapshot = {}
+
+    desktop_context = {
+        "application": snapshot.get(
+            "current_application"
+        ),
+        "process": snapshot.get(
+            "current_process"
+        ),
+        "window": snapshot.get(
+            "current_window"
+        ),
+        "activity": snapshot.get(
+            "activity"
+        ),
+        "confidence": snapshot.get(
+            "activity_confidence"
+        ),
+    }
+
+    # Keep the context compact. Do not send memory/session dumps to the
+    # intent router; it only needs enough desktop state to resolve
+    # references such as "this app" or "what am I working on?".
+    lines = [
+        "Current desktop context:",
+        f"Application: {desktop_context['application'] or 'Unknown'}",
+        f"Process: {desktop_context['process'] or 'Unknown'}",
+        f"Window: {desktop_context['window'] or 'Unknown'}",
+        f"Detected activity: {desktop_context['activity'] or 'Unknown'}",
+        f"Activity confidence: {desktop_context['confidence'] if desktop_context['confidence'] is not None else 'Unknown'}",
+        "Use this context only to resolve references and understand what the user is currently doing.",
+        "Never claim the user is doing something that is not supported by these fields.",
+    ]
+
+    history.append(
+        {
+            "role": "system",
+            "content": "\n".join(lines),
+        }
+    )
+
+    return history
+
+
 def understand_with_ai(
     command: str,
     recent_conversation=None
 ) -> Task:
 
+    routing_context = _build_routing_context(
+        recent_conversation
+    )
+
     plan = intent_router.route(
         command,
-        recent_conversation
+        routing_context
     )
 
     actions = plan.get(

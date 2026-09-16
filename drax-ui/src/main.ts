@@ -1550,6 +1550,18 @@ void listen<DraxEvent>(
          COMMAND COMPLETE
          --------------------------------------------------- */
 
+      case "command_complete":
+
+        removeThinking();
+
+        setBusy(
+          false
+        );
+
+        input?.focus();
+
+        break;
+
       case "status_done":
 
         showStatus(
