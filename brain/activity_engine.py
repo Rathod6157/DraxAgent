@@ -1,3 +1,5 @@
+import time
+
 from brain.context import context
 from brain.activity import activity
 from brain.event_bus import bus
@@ -12,6 +14,7 @@ class ActivityEngine:
 
     def __init__(self):
         self._latest_context = None
+        self._generation = 0
 
         bus.subscribe(
             "window_changed",
@@ -97,27 +100,68 @@ class ActivityEngine:
             ),
         }
 
-        # Keep the exact context associated
-        # with this classification request.
-        #
-        # This is important because classification
-        # happens asynchronously and the foreground
-        # window may change while the model is thinking.
-
+        # Keep the exact context associated with this
+        # observation. Classification happens asynchronously,
+        # so never rely on the mutable global context when the
+        # classifier eventually returns.
         self._latest_context = dict(
             context_data
         )
 
         # ---------------------------------
-        # Ask intelligence layer
+        # FAST PATH: desktop context
+        # ---------------------------------
         #
-        # Classification is asynchronous.
-        # Observer remains responsive.
+        # The user should see an application switch immediately.
+        # Semantic activity classification may take longer because
+        # it can involve AI/screenshot work. We therefore publish
+        # the raw desktop observation first, then let the classifier
+        # upgrade it a moment later.
+        #
+        # This gives the UI a two-stage experience:
+        #
+        #   instant -> Using Microsoft Edge
+        #   refined -> Debugging Software Code
+        #
+        bus.emit(
+            "activity_context",
+            {
+                "application": application,
+                "process": process,
+                "window": context_data.get("window_title"),
+                "executable": context_data.get("executable"),
+                "observed_at": time.time(),
+            }
+        )
+
+        # ---------------------------------
+        # AI classification
+        # ---------------------------------
+        #
+        # Capture the request context in the callback so a slow
+        # classifier can never render the wrong window.
         # ---------------------------------
 
+        request_context = dict(
+            context_data
+        )
+
+        # Every foreground observation gets its own generation.
+        # If the classifier is slower than the user switching windows,
+        # an older result is discarded instead of repainting the card
+        # with stale information.
+        self._generation += 1
+        generation = self._generation
+
         activity_classifier.classify_async(
-            context_data,
-            self.on_activity_classified
+            request_context,
+            lambda result, request=request_context,
+                   request_generation=generation:
+            self.on_activity_classified(
+                result,
+                request,
+                request_generation
+            )
         )
 
     # =================================
@@ -126,7 +170,9 @@ class ActivityEngine:
 
     def on_activity_classified(
         self,
-        result
+        result,
+        request_context=None,
+        request_generation=None
     ):
         if not isinstance(result, dict):
             result = {}
@@ -174,16 +220,33 @@ class ActivityEngine:
         # with the latest accepted result.
         # ---------------------------------
 
+        request_context = (
+            request_context
+            if isinstance(request_context, dict)
+            else {}
+        )
+
+        # Never allow an old classifier response to overwrite the
+        # activity belonging to a newer foreground window.
+        if (
+            request_generation is not None
+            and request_generation != self._generation
+        ):
+            return
+
         current_application = (
-            context.current_application
+            request_context.get("application")
+            or context.current_application
         )
 
         current_process = (
-            context.current_process
+            request_context.get("process")
+            or context.current_process
         )
 
         current_window = (
-            context.current_window
+            request_context.get("window_title")
+            or context.current_window
         )
 
         # ---------------------------------
