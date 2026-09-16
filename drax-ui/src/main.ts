@@ -104,6 +104,12 @@ const activityState =
   );
 
 
+const activityCard =
+  document.querySelector<HTMLElement>(
+    ".activity-card"
+  );
+
+
 const statusToast =
   document.querySelector<HTMLDivElement>(
     "#status-toast"
@@ -113,6 +119,12 @@ const statusToast =
 const statusText =
   document.querySelector<HTMLSpanElement>(
     "#status-text"
+  );
+
+
+const statusIcon =
+  document.querySelector<HTMLSpanElement>(
+    "#status-icon"
   );
 
 
@@ -133,6 +145,60 @@ let activityTimer:
 
 let lastActivityApplication =
   "";
+
+
+/* =========================================================
+   ACTIVITY CARD INTERACTION
+   ========================================================= */
+
+if (activityCard) {
+
+  let spotlightFrame =
+    0;
+
+  activityCard.addEventListener(
+    "pointermove",
+    (event) => {
+
+      if (spotlightFrame) {
+        return;
+      }
+
+      spotlightFrame =
+        window.requestAnimationFrame(() => {
+
+          const rect =
+            activityCard.getBoundingClientRect();
+
+          activityCard.style.setProperty(
+            "--mouse-x",
+            `${event.clientX - rect.left}px`
+          );
+
+          activityCard.style.setProperty(
+            "--mouse-y",
+            `${event.clientY - rect.top}px`
+          );
+
+          activityCard.classList.add(
+            "activity-pointer-active"
+          );
+
+          spotlightFrame = 0;
+        });
+    },
+    { passive: true }
+  );
+
+  activityCard.addEventListener(
+    "pointerleave",
+    () => {
+      activityCard.classList.remove(
+        "activity-pointer-active"
+      );
+    }
+  );
+}
 
 
 /* =========================================================
@@ -162,8 +228,92 @@ function scrollToBottom(): void {
 
 
 /* =========================================================
-   STATUS TOAST
+   STATUS ICONS / MICRO-INTERACTIONS
    ========================================================= */
+
+function getStatusIcon(text: string): string {
+
+  const value = text.toLowerCase();
+
+  if (value.includes("looking") || value.includes("search")) {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="6.5"></circle>
+        <path d="m16 16 4.2 4.2"></path>
+      </svg>
+    `;
+  }
+
+  if (value.includes("close") || value.includes("closing")) {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m7 7 10 10M17 7 7 17"></path>
+      </svg>
+    `;
+  }
+
+  if (value.includes("open") || value.includes("launch")) {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3v12"></path>
+        <path d="m7 10 5 5 5-5"></path>
+        <path d="M5 20h14"></path>
+      </svg>
+    `;
+  }
+
+  if (value.includes("error") || value.includes("failed")) {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3 2.8 20h18.4L12 3Z"></path>
+        <path d="M12 9v5"></path>
+        <path d="M12 17h.01"></path>
+      </svg>
+    `;
+  }
+
+  if (value.includes("thinking") || value.includes("processing")) {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="6" cy="12" r="1.5"></circle>
+        <circle cx="12" cy="12" r="1.5"></circle>
+        <circle cx="18" cy="12" r="1.5"></circle>
+      </svg>
+    `;
+  }
+
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m5 12 4.2 4.2L19 6.5"></path>
+    </svg>
+  `;
+}
+
+
+function cleanStatusText(text: string): string {
+  // Status messages historically used emoji prefixes. Keep the
+  // text, but move the visual indicator into our SVG icon.
+  return text
+    .replace(/^[\s\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]+/u, "")
+    .trim() || "Ready";
+}
+
+
+function pulseActivityCard(): void {
+
+  if (!activityCard) {
+    return;
+  }
+
+  activityCard.classList.remove("activity-changing");
+
+  // Force a tiny reflow so consecutive window switches still retrigger
+  // the transition instead of getting swallowed by the browser.
+  void activityCard.offsetWidth;
+
+  activityCard.classList.add("activity-changing");
+}
+
 
 function showStatus(
   text: string,
@@ -188,9 +338,16 @@ function showStatus(
   }
 
 
-  statusText.textContent =
-    text;
+  const cleanText =
+    cleanStatusText(text);
 
+  statusText.textContent =
+    cleanText;
+
+  if (statusIcon) {
+    statusIcon.innerHTML =
+      getStatusIcon(cleanText);
+  }
 
   statusToast.classList.add(
     "visible"
@@ -334,6 +491,8 @@ function updateActivity(
   confidence?: number,
   refined = true,
 ): void {
+
+  pulseActivityCard();
 
   if (activityTitle) {
     activityTitle.textContent = title || "Unknown";
