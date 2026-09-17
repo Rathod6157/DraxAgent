@@ -13,7 +13,9 @@ from brain.intelligence.activity_classifier import (
 class ActivityEngine:
 
     def __init__(self):
+
         self._latest_context = None
+
         self._generation = 0
 
         bus.subscribe(
@@ -21,15 +23,17 @@ class ActivityEngine:
             self.on_window_changed
         )
 
-    # =================================
-    # DraxAgent detection
-    # =================================
+
+    # ========================================================
+    # DRAX DETECTION
+    # ========================================================
 
     def is_drax_window(
         self,
         application,
         process
     ):
+
         application_value = (
             application
             or ""
@@ -44,6 +48,7 @@ class ActivityEngine:
             "draxagent" in application_value
             or "drax" in application_value
         ):
+
             return True
 
         if process_value in {
@@ -52,121 +57,162 @@ class ActivityEngine:
             "python3.11",
             "python3.11.exe",
         }:
+
             return True
 
         return False
 
-    # =================================
-    # Window changed
-    # =================================
+
+    # ========================================================
+    # WINDOW CHANGED
+    # ========================================================
 
     def on_window_changed(
         self,
         data
     ):
-        if not isinstance(data, dict):
+
+        if not isinstance(
+            data,
+            dict
+        ):
+
             return
 
-        application = data.get(
-            "application"
+
+        application = (
+            data.get("application")
+            or "Unknown application"
         )
 
-        process = data.get(
-            "process"
+        process = (
+            data.get("process")
+            or ""
         )
 
-        # ---------------------------------
-        # Ignore DraxAgent itself
-        # ---------------------------------
+        window_title = (
+            data.get("title")
+            or data.get("window")
+            or ""
+        )
+
+
+        # ----------------------------------------------------
+        # Ignore Drax itself
+        # ----------------------------------------------------
 
         if self.is_drax_window(
             application,
             process
         ):
+
             return
 
-        # ---------------------------------
-        # Build intelligence context
-        # ---------------------------------
 
-        context_data = {
-            "application": application,
-            "process": process,
-            "executable": data.get(
-                "executable"
-            ),
-            "window_title": data.get(
-                "title"
-            ),
+        # ----------------------------------------------------
+        # Build immutable observation context
+        # ----------------------------------------------------
+
+        request_context = {
+
+            "application":
+                str(application),
+
+            "process":
+                str(process),
+
+            "executable":
+                data.get("executable"),
+
+            "window_title":
+                str(window_title),
+
         }
 
-        # Keep the exact context associated with this
-        # observation. Classification happens asynchronously,
-        # so never rely on the mutable global context when the
-        # classifier eventually returns.
+
         self._latest_context = dict(
-            context_data
+            request_context
         )
 
-        # ---------------------------------
-        # FAST PATH: desktop context
-        # ---------------------------------
+
+        # ====================================================
+        # FAST PATH
+        # ====================================================
         #
-        # The user should see an application switch immediately.
-        # Semantic activity classification may take longer because
-        # it can involve AI/screenshot work. We therefore publish
-        # the raw desktop observation first, then let the classifier
-        # upgrade it a moment later.
+        # The UI should NOT wait for Gemini.
         #
-        # This gives the UI a two-stage experience:
+        # Immediately tell the frontend:
         #
-        #   instant -> Using Microsoft Edge
-        #   refined -> Debugging Software Code
+        #     Using Chrome
         #
+        # Then AI can refine it later:
+        #
+        #     Browsing
+        #
+        # ====================================================
+
         bus.emit(
             "activity_context",
             {
-                "application": application,
-                "process": process,
-                "window": context_data.get("window_title"),
-                "executable": context_data.get("executable"),
-                "observed_at": time.time(),
+                "application":
+                    application,
+
+                "process":
+                    process,
+
+                "window":
+                    window_title,
+
+                "executable":
+                    data.get(
+                        "executable"
+                    ),
+
+                "observed_at":
+                    data.get(
+                        "timestamp"
+                    )
+                    or time.time(),
             }
         )
 
-        # ---------------------------------
-        # AI classification
-        # ---------------------------------
-        #
-        # Capture the request context in the callback so a slow
-        # classifier can never render the wrong window.
-        # ---------------------------------
 
-        request_context = dict(
-            context_data
+        # ====================================================
+        # GENERATION
+        # ====================================================
+
+        self._generation += 1
+
+        generation = (
+            self._generation
         )
 
-        # Every foreground observation gets its own generation.
-        # If the classifier is slower than the user switching windows,
-        # an older result is discarded instead of repainting the card
-        # with stale information.
-        self._generation += 1
-        generation = self._generation
+
+        # ====================================================
+        # AI CLASSIFICATION
+        # ====================================================
 
         activity_classifier.classify_async(
-            request_context,
-            lambda result, request=request_context,
+
+            dict(
+                request_context
+            ),
+
+            lambda result,
+                   request=request_context,
                    request_generation=generation:
-            self.on_activity_classified(
-                result,
-                request,
-                request_generation
-            )
+
+                self.on_activity_classified(
+                    result,
+                    request,
+                    request_generation
+                )
         )
 
-    # =================================
-    # Intelligence result
-    # =================================
+
+    # ========================================================
+    # CLASSIFIER RESULT
+    # ========================================================
 
     def on_activity_classified(
         self,
@@ -174,33 +220,82 @@ class ActivityEngine:
         request_context=None,
         request_generation=None
     ):
-        if not isinstance(result, dict):
+
+        if not isinstance(
+            result,
+            dict
+        ):
+
             result = {}
 
+
+        # ----------------------------------------------------
+        # Reject stale AI result
+        # ----------------------------------------------------
+
+        if (
+            request_generation is not None
+            and request_generation != self._generation
+        ):
+
+            return
+
+
+        request_context = (
+
+            request_context
+
+            if isinstance(
+                request_context,
+                dict
+            )
+
+            else {}
+        )
+
+
+        # ----------------------------------------------------
+        # Activity
+        # ----------------------------------------------------
+
         activity_name = str(
+
             result.get(
                 "activity",
                 "Unknown"
             )
+
         ).strip()
 
+
         if not activity_name:
+
             activity_name = "Unknown"
+
+
+        # ----------------------------------------------------
+        # Confidence
+        # ----------------------------------------------------
 
         confidence = result.get(
             "confidence",
             20
         )
 
+
         try:
+
             confidence = int(
                 confidence
             )
+
         except (
             TypeError,
             ValueError
         ):
+
             confidence = 20
+
 
         confidence = max(
             0,
@@ -210,129 +305,154 @@ class ActivityEngine:
             )
         )
 
-        # ---------------------------------
-        # Use the context belonging to the
-        # classification request.
+
+        # ----------------------------------------------------
+        # IMPORTANT:
         #
-        # ActivityClassifier already prevents
-        # stale generations from reaching this
-        # callback, so this remains synchronized
-        # with the latest accepted result.
-        # ---------------------------------
+        # Use the context that produced THIS result.
+        #
+        # Never read the mutable global desktop state here.
+        # ----------------------------------------------------
 
-        request_context = (
-            request_context
-            if isinstance(request_context, dict)
-            else {}
-        )
+        application = (
 
-        # Never allow an old classifier response to overwrite the
-        # activity belonging to a newer foreground window.
-        if (
-            request_generation is not None
-            and request_generation != self._generation
-        ):
-            return
+            request_context.get(
+                "application"
+            )
 
-        current_application = (
-            request_context.get("application")
             or context.current_application
+            or "Unknown application"
         )
 
-        current_process = (
-            request_context.get("process")
+
+        process = (
+
+            request_context.get(
+                "process"
+            )
+
             or context.current_process
+            or ""
         )
 
-        current_window = (
-            request_context.get("window_title")
+
+        window = (
+
+            request_context.get(
+                "window_title"
+            )
+
             or context.current_window
+            or ""
         )
 
-        # ---------------------------------
-        # Update activity state
-        # ---------------------------------
+
+        # ====================================================
+        # UPDATE SHARED ACTIVITY
+        # ====================================================
 
         activity.update(
+
             activity_name,
+
             confidence,
+
             [
-                current_window
+                window
             ],
-            application=current_application,
-            process=current_process
+
+            application=application,
+
+            process=process
         )
 
-        # ---------------------------------
-        # Activity history
-        # ---------------------------------
+
+        # ====================================================
+        # HISTORY
+        # ====================================================
 
         activity_history.add(
             activity.name
         )
 
-        # ---------------------------------
-        # Build UI-safe activity payload
-        #
-        # Keep this deliberately presentation-
-        # neutral. The ActivityCard decides how
-        # this information should look.
-        # ---------------------------------
+
+        # ====================================================
+        # UI PAYLOAD
+        # ====================================================
 
         activity_payload = {
-            "activity": activity.name,
-            "confidence": activity.confidence,
-            "application": activity.application,
-            "process": activity.process,
-            "window": current_window,
-            "started_at": activity.started_at,
 
-            # Optional richer context.
-            #
-            # The classifier may provide this in
-            # the future. Older classifier results
-            # simply leave it empty.
-            "context": result.get(
-                "context",
-                ""
-            ),
+            "activity":
+                activity.name,
 
-            # Preserve any future metadata without
-            # forcing the UI to depend on it.
-            "visual_context": result.get(
-                "visual_context"
-            ),
+            "confidence":
+                activity.confidence,
+
+            "application":
+                activity.application,
+
+            "process":
+                activity.process,
+
+            "window":
+                window,
+
+            "started_at":
+                activity.started_at,
+
+            "context":
+                result.get(
+                    "context",
+                    ""
+                ),
+
+            "visual_context":
+                result.get(
+                    "visual_context"
+                ),
         }
 
-        # ---------------------------------
-        # Notify UI
-        # ---------------------------------
+
+        # ====================================================
+        # FRONTEND
+        # ====================================================
 
         bus.emit(
             "activity_updated",
             activity_payload
         )
 
-        # ---------------------------------
-        # Debug timeline
-        # ---------------------------------
+
+        # ====================================================
+        # DEBUG TIMELINE
+        # ====================================================
 
         recent = (
-            activity_history.recent()[-5:]
+            activity_history
+            .recent()
+            [-5:]
         )
+
 
         print(
             "\n===== Activity Timeline ====="
         )
 
+
         for item in recent:
+
             print(
                 item["activity"]
             )
+
 
         print(
             "=============================\n"
         )
 
+
+# ============================================================
+# SINGLETON
+# ============================================================
 
 activity_engine = ActivityEngine()

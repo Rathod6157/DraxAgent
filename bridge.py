@@ -3,19 +3,12 @@ import json
 import traceback
 import os
 import threading
+import time
 
 
 # ============================================================
 # DRAX TAURI BRIDGE
 # ============================================================
-#
-# stdout = JSONL protocol ONLY
-# stderr = Python/debug output
-#
-# The bridge keeps Drax alive and processes one command at a
-# time, while also forwarding desktop-awareness events to Tauri.
-# ============================================================
-
 
 os.environ["DRAX_BRIDGE"] = "1"
 os.environ["PYTHONUTF8"] = "1"
@@ -24,18 +17,20 @@ os.environ["PYTHONUNBUFFERED"] = "1"
 
 
 # ============================================================
-# BRIDGE STDOUT
+# STDOUT / STDERR
+# ============================================================
+#
+# stdout = ONLY JSONL for Tauri
+# stderr = Python/debug output
 # ============================================================
 
 BRIDGE_STDOUT = sys.stdout
 
+sys.stdout = sys.stderr
+
 
 # ============================================================
 # THREAD-SAFE JSON OUTPUT
-# ============================================================
-#
-# Observer/activity callbacks run outside the command thread.
-# Multiple threads must never write JSONL simultaneously.
 # ============================================================
 
 _send_lock = threading.Lock()
@@ -43,36 +38,42 @@ _send_lock = threading.Lock()
 
 def send(message):
     """
-    Send exactly one JSON event to the Tauri frontend.
+    Send exactly one JSON event to Tauri.
     """
 
     if not isinstance(message, dict):
         return
 
-    with _send_lock:
+    try:
 
-        BRIDGE_STDOUT.write(
-            json.dumps(
-                message,
-                ensure_ascii=False
-            )
-            + "\n"
+        payload = json.dumps(
+            message,
+            ensure_ascii=False
         )
 
-        BRIDGE_STDOUT.flush()
+        with _send_lock:
+
+            BRIDGE_STDOUT.write(
+                payload + "\n"
+            )
+
+            BRIDGE_STDOUT.flush()
+
+    except Exception:
+
+        traceback.print_exc(
+            file=sys.stderr
+        )
 
 
 # ============================================================
-# PYTHON -> TAURI OUTPUT CALLBACK
+# TERMINAL -> TAURI
 # ============================================================
 
 def frontend_output(
     text,
     message_type="assistant"
 ):
-    """
-    Forward Drax terminal output into the Tauri frontend.
-    """
 
     if text is None:
         return
@@ -95,50 +96,108 @@ def frontend_output(
 
 def forward_activity_context(data):
     """
-    Forward the observer's immediate foreground-window context
-    to the Tauri frontend.
+    Forward raw foreground-window observations to Tauri.
 
-    This is deliberately lightweight.
-
-    It does NOT run AI classification.
+    Drax's own window is deliberately ignored so the activity
+    card continues showing the last real desktop application
+    while the user is interacting with Drax.
     """
 
-    if not isinstance(data, dict):
+    if not isinstance(
+        data,
+        dict
+    ):
         return
 
+
     application = (
-        data.get("application")
+        data.get(
+            "application"
+        )
         or "Unknown application"
     )
 
-    window_title = (
-        data.get("title")
-        or data.get("window")
+
+    process = (
+        data.get(
+            "process"
+        )
         or ""
     )
 
-    observed_at = data.get(
-        "observed_at"
+
+    application_text = str(
+        application
+    ).strip().lower()
+
+
+    process_text = str(
+        process
+    ).strip().lower()
+
+
+    # ---------------------------------------------------------
+    # Ignore Drax itself.
+    # ---------------------------------------------------------
+
+    if (
+        "drax" in application_text
+        or "draxagent" in application_text
+        or process_text in {
+            "drax-ui.exe",
+            "python.exe",
+            "python3.exe",
+            "python3.11",
+            "python3.11.exe",
+        }
+    ):
+        return
+
+
+    window = (
+        data.get(
+            "title"
+        )
+        or data.get(
+            "window"
+        )
+        or ""
     )
+
+
+    observed_at = (
+        data.get(
+            "timestamp"
+        )
+        or data.get(
+            "observed_at"
+        )
+        or time.time()
+    )
+
 
     send({
         "type": "activity_context",
-        "application": str(application),
-        "process": str(
-            data.get("process")
-            or ""
+
+        "application": str(
+            application
         ),
-        "window": str(window_title),
+
+        "process": str(
+            process
+        ),
+
+        "window": str(
+            window
+        ),
+
         "observed_at": observed_at
     })
 
 
 def forward_activity_update(data):
     """
-    Forward the AI-refined activity state to Tauri.
-
-    ActivityEngine owns the actual intelligence.
-    The bridge only transports the result.
+    Forward the AI-refined activity state.
     """
 
     if not isinstance(data, dict):
@@ -192,23 +251,23 @@ def forward_activity_update(data):
 
 def initialize_awareness():
     """
-    Start Drax's desktop observer and connect its event bus
-    to the Tauri JSONL bridge.
+    Initialize Drax's desktop observer and activity engine.
 
-    This is the important piece that makes the Tauri UI
-    actually aware of the desktop.
+    IMPORTANT:
+    Importing these modules creates their shared singletons
+    and event-bus subscriptions.
     """
 
-    from brain import (
-        observer,
-        bus,
-    )
+    from brain import observer
+
+    from brain.event_bus import bus
+
+    # Force ActivityEngine singleton to exist.
+    from brain import activity_engine
+    _ = activity_engine
 
     # --------------------------------------------------------
-    # Forward raw foreground-window changes immediately.
-    #
-    # This gives the UI an instant "Using Chrome" / "Using VS
-    # Code" style update before AI classification finishes.
+    # Raw foreground window -> Tauri
     # --------------------------------------------------------
 
     bus.subscribe(
@@ -217,9 +276,7 @@ def initialize_awareness():
     )
 
     # --------------------------------------------------------
-    # Forward AI-refined activity.
-    #
-    # ActivityEngine already produces this event.
+    # AI activity -> Tauri
     # --------------------------------------------------------
 
     bus.subscribe(
@@ -228,7 +285,7 @@ def initialize_awareness():
     )
 
     # --------------------------------------------------------
-    # Start the actual Windows observer.
+    # Start observer
     # --------------------------------------------------------
 
     observer.start()
@@ -258,18 +315,10 @@ def handle_pending_action(
     pending,
     user_input
 ):
-    """
-    Route pending confirmations/selections through the same
-    handlers used by the normal Drax terminal interface.
-    """
 
     status = pending.get(
         "status"
     )
-
-    # --------------------------------------------------------
-    # CLOSE APP
-    # --------------------------------------------------------
 
     if status == "close_confirmation_required":
 
@@ -282,11 +331,6 @@ def handle_pending_action(
             user_input
         )
 
-
-    # --------------------------------------------------------
-    # OPEN APP
-    # --------------------------------------------------------
-
     from skills.open_app import (
         handle_pending_response
     )
@@ -298,24 +342,13 @@ def handle_pending_action(
 
 
 # ============================================================
-# RESULT -> FRONTEND
+# RESULT -> TAURI
 # ============================================================
 
 def forward_result(result):
-    """
-    Forward a structured execution result when the terminal
-    callback did not already provide the user-facing message.
-
-    Returns True when something was sent.
-    """
 
     if result is None:
         return False
-
-
-    # --------------------------------------------------------
-    # ExecutionResult-style object
-    # --------------------------------------------------------
 
     message = getattr(
         result,
@@ -337,11 +370,6 @@ def forward_result(result):
             })
 
             return True
-
-
-    # --------------------------------------------------------
-    # Dictionary-style result
-    # --------------------------------------------------------
 
     if isinstance(
         result,
@@ -367,7 +395,6 @@ def forward_result(result):
 
                 return True
 
-
         status = result.get(
             "status"
         )
@@ -389,7 +416,6 @@ def forward_result(result):
 
             return True
 
-
     return False
 
 
@@ -398,9 +424,6 @@ def forward_result(result):
 # ============================================================
 
 def initialize_drax():
-    """
-    Initialize bridge dependencies exactly once.
-    """
 
     from terminal import (
         set_output_callback
@@ -414,75 +437,57 @@ def initialize_drax():
         get_cached_applications
     )
 
-
     # --------------------------------------------------------
-    # Import brain services.
-    #
-    # This loads the shared event bus, ActivityEngine,
-    # context, memory, observer, etc.
+    # Import brain systems FIRST.
     # --------------------------------------------------------
 
     try:
 
         from brain import services
 
-    except Exception:
+    except Exception as error:
 
         services = None
 
+        print(
+            f"[Bridge] Brain services warning: {error}",
+            file=sys.stderr
+        )
 
     # --------------------------------------------------------
-    # Load skills ONCE.
-    #
-    # IMPORTANT:
-    # This happens BEFORE installing frontend_output.
-    # Therefore startup skill messages stay out of chat.
+    # Skills
     # --------------------------------------------------------
 
     load_skills()
 
-
     # --------------------------------------------------------
-    # Connect terminal output.
+    # Terminal -> Tauri
     # --------------------------------------------------------
 
     set_output_callback(
         frontend_output
     )
 
-
     # --------------------------------------------------------
-    # Warm application resolver ONCE.
+    # Resolver warm-up
     # --------------------------------------------------------
 
     try:
 
         get_cached_applications()
 
-    except Exception:
-
-        pass
-
-
-    # --------------------------------------------------------
-    # START DESKTOP AWARENESS
-    # --------------------------------------------------------
-
-    try:
-
-        initialize_awareness()
-
     except Exception as error:
 
         print(
-            f"[Bridge] Desktop awareness failed: {error}",
+            f"[Bridge] Resolver warm-up skipped: {error}",
             file=sys.stderr
         )
 
-        traceback.print_exc(
-            file=sys.stderr
-        )
+    # --------------------------------------------------------
+    # Desktop awareness
+    # --------------------------------------------------------
 
+    initialize_awareness()
 
     return services
 
@@ -495,48 +500,27 @@ def handle_command(text):
 
     global pending_action
 
-    response_sent = False
-
-    original_stdout = sys.stdout
-
-
     try:
 
-        # ----------------------------------------------------
-        # Keep stdout exclusively for JSONL.
-        # ----------------------------------------------------
-
-        sys.stdout = sys.stderr
-
-
-        # ----------------------------------------------------
-        # REAL DRAX PIPELINE
-        # ----------------------------------------------------
-
-        from core import (
-            understand
+        from brain.drax import (
+            drax
         )
 
-        from executor import (
-            execute
+        from brain.event_bus import (
+            bus
         )
-
-        from brain.companion import (
-            companion
-        )
-
-        from terminal import (
-            set_output_callback
-        )
-
-
-        set_output_callback(
-            frontend_output
-        )
-
 
         # ----------------------------------------------------
-        # COMMAND START
+        # Tell context engine about the message.
+        # ----------------------------------------------------
+
+        bus.emit(
+            "message",
+            text
+        )
+
+        # ----------------------------------------------------
+        # Thinking
         # ----------------------------------------------------
 
         send({
@@ -549,155 +533,46 @@ def handle_command(text):
             "text": "Thinking..."
         })
 
-
         # ----------------------------------------------------
-        # PENDING ACTION
-        # ----------------------------------------------------
-
-        if pending_action is not None:
-
-            pending_action = (
-                handle_pending_action(
-                    pending_action,
-                    text
-                )
-            )
-
-            return
-
-
-        # ----------------------------------------------------
-        # UNDERSTAND
+        # Use the REAL Drax public pipeline.
         # ----------------------------------------------------
 
-        task = understand(
+        response = drax.chat(
             text
         )
 
-
         # ----------------------------------------------------
-        # EXECUTE
-        # ----------------------------------------------------
-
-        result = execute(
-            task
-        )
-
-
-        # ----------------------------------------------------
-        # STORE PENDING OPERATION
+        # Direct string
         # ----------------------------------------------------
 
-        if (
-            isinstance(
-                result,
-                dict
-            )
-            and result.get(
-                "status"
-            ) in PENDING_STATUSES
+        if isinstance(
+            response,
+            str
         ):
 
-            pending_action = result
-
-
-        # ----------------------------------------------------
-        # EXIT
-        # ----------------------------------------------------
-
-        if (
-            task.intent == "exit"
-            or (
-                task.data
-                and task.data.get(
-                    "action"
-                ) == "exit"
-            )
-        ):
-
-            send({
-                "type": "exit_requested"
-            })
-
-            response_sent = True
-
-            return
-
-
-        # ----------------------------------------------------
-        # CONVERSATION
-        # ----------------------------------------------------
-
-        conversation = (
-            task.data.get(
-                "conversation"
-            )
-            if task.data
-            else None
-        )
-
-
-        if task.intent == "conversation":
-
-            conversation = text
-
-
-        if conversation:
-
-            response = companion.chat(
-                conversation,
-                execution=result
-            )
+            response = response.strip()
 
             if response:
 
-                response = str(
-                    response
-                ).strip()
-
-                if response:
-
-                    send({
-                        "type": "assistant_message",
-                        "text": response
-                    })
-
-                    response_sent = True
-
-                    return
-
+                send({
+                    "type": "assistant_message",
+                    "text": response
+                })
 
         # ----------------------------------------------------
-        # STRUCTURED EXECUTION RESULT
+        # Structured result
         # ----------------------------------------------------
 
-        response_sent = (
-            forward_result(
-                result
-            )
-        )
+        elif response is not None:
 
+            if not forward_result(
+                response
+            ):
 
-        # ----------------------------------------------------
-        # SAFE FALLBACK
-        # ----------------------------------------------------
-
-        if (
-            not response_sent
-            and pending_action is None
-        ):
-
-            send({
-                "type": "assistant_message",
-                "text": (
-                    "I completed the request, "
-                    "but I didn't receive a response "
-                    "to display."
+                print(
+                    "[Bridge] Drax returned no direct response.",
+                    file=sys.stderr
                 )
-            })
-
-            response_sent = True
-
 
     except Exception as error:
 
@@ -706,25 +581,11 @@ def handle_command(text):
             "text": str(error)
         })
 
-        response_sent = True
-
         traceback.print_exc(
             file=sys.stderr
         )
 
-
     finally:
-
-        sys.stdout = original_stdout
-
-
-        # ----------------------------------------------------
-        # Always end command cycle.
-        # ----------------------------------------------------
-
-        send({
-            "type": "command_complete"
-        })
 
         send({
             "type": "typing",
@@ -738,10 +599,6 @@ def handle_command(text):
 
 def main():
 
-    # --------------------------------------------------------
-    # Initialize exactly once.
-    # --------------------------------------------------------
-
     try:
 
         initialize_drax()
@@ -751,7 +608,7 @@ def main():
         send({
             "type": "error",
             "text": (
-                "Bridge initialization failed: "
+                "Drax initialization failed: "
                 f"{error}"
             )
         })
@@ -762,18 +619,12 @@ def main():
 
         return
 
-
-    # --------------------------------------------------------
-    # Bridge ready.
-    # --------------------------------------------------------
-
     send({
         "type": "ready"
     })
 
-
     # --------------------------------------------------------
-    # JSONL COMMAND LOOP
+    # JSONL loop
     # --------------------------------------------------------
 
     for line in sys.stdin:
@@ -782,7 +633,6 @@ def main():
 
         if not line:
             continue
-
 
         try:
 
@@ -799,15 +649,9 @@ def main():
 
             continue
 
-
         message_type = message.get(
             "type"
         )
-
-
-        # ----------------------------------------------------
-        # CHAT
-        # ----------------------------------------------------
 
         if message_type == "chat":
 
@@ -823,11 +667,6 @@ def main():
                 handle_command(
                     text
                 )
-
-
-        # ----------------------------------------------------
-        # PING
-        # ----------------------------------------------------
 
         elif message_type == "ping":
 

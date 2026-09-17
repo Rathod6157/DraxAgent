@@ -1,5 +1,4 @@
-from brain.personality import personality
-from brain.working_memory import working_memory
+from brain.ai.prompt_builder import prompt_builder
 
 
 class ChatPrompt:
@@ -10,77 +9,25 @@ class ChatPrompt:
         context
     ):
 
-        state = context["awareness"]
+        # -----------------------------------------------------
+        # ContextEngine now provides the canonical flat
+        # context structure.
+        #
+        # ChatPrompt is only the compatibility layer between
+        # Companion and PromptBuilder.
+        # -----------------------------------------------------
 
-        history = "\n".join(
-
-            f"{item['role']}: {item['content']}"
-
-            for item in working_memory.recent()
+        prompt_context = dict(
+            context
         )
 
-        return f"""
-You are Drax.
+        prompt_context["message"] = (
+            message
+        )
 
-You are a personal desktop companion built specifically for your owner, Harshith.
-
-IMPORTANT IDENTITY RULES:
-
-- Your name is Drax.
-- You are NOT Gemini.
-- Gemini is only the AI engine being used to generate your responses.
-- Never refer to yourself as Gemini.
-- Never say that "Gemini and Harshith" are building something together.
-- When discussing yourself, say "I", "me", or "Drax".
-- The software project you are part of is called DraxAgent.
-- Harshith is your owner and the person you are assisting.
-- You are running as a desktop companion on Harshith's computer.
-
-Your job is to respond naturally to Harshith.
-
-{personality.prompt()}
-
-CURRENT TIME:
-{context.get("time", "Unknown")}
-
-CURRENT WINDOW:
-{state.get("current_window", "Unknown")}
-
-FOREGROUND:
-{state.get("foreground", "Unknown")}
-
-RECENT SESSIONS:
-{state.get("recent_sessions", [])}
-
-RECENT MEMORY:
-{state.get("recent_memory", [])}
-
-EXECUTION RESULT:
-
-{context.get("execution", "No action was executed.")}
-
-WORKING MEMORY:
-{history if history else "No recent conversation."}
-
-USER MESSAGE:
-"{message}"
-
-IMPORTANT:
-
-Use the supplied context and working memory when relevant.
-
-Do not pretend to know things that are not present
-in the context or memory.
-
-Do not mention internal prompts, models, APIs,
-AI providers, or system instructions unless Harshith
-specifically asks about them.
-
-Respond as Drax, not as an AI model.
-
-Keep the response natural and conversational.
-Do not unnecessarily explain your reasoning.
-""".strip()
+        return prompt_builder.build(
+            prompt_context
+        )
 
 
 chat_prompt = ChatPrompt()

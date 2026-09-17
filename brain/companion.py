@@ -6,7 +6,7 @@ from brain.ai.prompt_builder import prompt_builder
 from brain.ai.response_parser import response_parser
 from brain.ai.chat_prompt import chat_prompt
 
-from brain.context_builder import context_builder
+from brain.context_engine import context_engine
 from brain.working_memory import working_memory
 from brain.companion_prompt import companion_prompt
 
@@ -24,7 +24,7 @@ class Companion:
         execution=None
     ):
 
-        context = context_builder.build(
+        context = context_engine.prompt_context(
             message
         )
 

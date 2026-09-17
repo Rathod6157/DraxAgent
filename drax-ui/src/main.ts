@@ -1090,10 +1090,7 @@ async function sendCommand(
      ACTIVITY
      ------------------------------------------------------- */
 
-  updateActivity(
-    "Processing",
-    "Drax"
-  );
+
 
 
   showStatus(
@@ -1148,10 +1145,7 @@ async function sendCommand(
     );
 
 
-    updateActivity(
-      "Error",
-      "Drax bridge"
-    );
+
 
 
     showStatus(
@@ -1364,10 +1358,6 @@ void listen<DraxEvent>(
           );
 
 
-          updateActivity(
-            "Conversing",
-            "Drax"
-          );
 
 
           showStatus(
@@ -1439,10 +1429,7 @@ void listen<DraxEvent>(
           );
 
 
-          updateActivity(
-            "Completed",
-            "Drax"
-          );
+
 
 
           showStatus(
@@ -1475,10 +1462,7 @@ void listen<DraxEvent>(
           );
 
 
-          updateActivity(
-            "Error",
-            "Drax"
-          );
+
 
 
           showStatus(
@@ -1528,10 +1512,7 @@ void listen<DraxEvent>(
         }
 
 
-        updateActivity(
-          "Conversing",
-          "Drax"
-        );
+
 
 
         showStatus(
@@ -1595,10 +1576,7 @@ void listen<DraxEvent>(
         );
 
 
-        updateActivity(
-          "Error",
-          "Drax bridge"
-        );
+
 
 
         showStatus(

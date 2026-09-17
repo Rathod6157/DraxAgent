@@ -17,6 +17,9 @@ class IntentRouter:
         "close_app",
         "timer",
         "app_status",
+        "file_search",
+        "file_inspect",
+        "wait_for_app",
         "visual_observe",
         "visual_click",
         "compound",
@@ -350,6 +353,68 @@ Example:
 
 IMPORTANT:
 Visual commands must NOT be classified as normal conversation.
+
+
+30A. LOCAL FILE / RESOURCE INTELLIGENCE:
+
+- file_search
+- file_inspect
+
+Use "file_search" when the user asks Drax to find, locate,
+search for, list, or identify a local file.
+
+Examples:
+"Find main.py"
+"Where is my resume?"
+"Find the DraxAgent config file"
+"Search my files for the NDA notes"
+
+Use "file_inspect" when the user asks Drax to open, read,
+check, inspect, analyze, explain, debug, review, summarize,
+or fix a local file.
+
+Examples:
+"Check this file"
+"Read main.py"
+"Analyze this Python file"
+"Find the bug in conversation.py"
+"Review the file I'm looking at"
+"Fix this file"
+
+For "this file", "the current file", or equivalent:
+- target MUST be exactly "this file".
+- Drax will resolve it from the current desktop/window context.
+
+For a named file:
+- target MUST contain the file name/path or the user's file query.
+- Do not invent a path.
+
+Do NOT confuse local file requests with web searches.
+
+30B. APPLICATION STATE / WATCHING:
+
+Use "app_status" when the user asks whether an application
+is open, running, responding, frozen, or not responding.
+
+Examples:
+"Is Chrome running?"
+"Is VS Code responding?"
+"Is Spotify open?"
+"Why is Edge not responding?" -> app_status
+
+Use "wait_for_app" when the user explicitly asks Drax to wait,
+watch, monitor, or notify them when an application becomes
+responsive again.
+
+Examples:
+"Wait for VS Code to respond"
+"Let me know when Chrome responds again"
+"Watch Notepad until it is responding"
+"Tell me when this app is back"
+
+For wait_for_app:
+- target MUST contain only the application name.
+- Do not put "wait", "watch", "responding", or "again" in target.
 
 31. Return ONLY valid JSON.
 

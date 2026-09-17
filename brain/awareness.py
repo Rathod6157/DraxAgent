@@ -9,21 +9,18 @@ class Awareness:
 
     def snapshot(self):
 
-        # -------------------------------------------------
-        # Drax itself is intentionally excluded from the
-        # tracked desktop activity. When the user opens the
-        # Drax window to ask a question, context.current_* may
-        # briefly point at Drax even though the user's real
-        # task is still the external application.
-        #
-        # In that case, fall back to the last accepted activity
-        # state instead of teaching Drax that the user is
-        # "working in Drax" simply because they summoned it.
-        # -------------------------------------------------
+        application = (
+            context.current_application
+        )
 
-        application = context.current_application
-        process = context.current_process
-        window = context.current_window
+        process = (
+            context.current_process
+        )
+
+        window = (
+            context.current_window
+        )
+
 
         application_text = (
             application
@@ -35,6 +32,7 @@ class Awareness:
             or ""
         ).lower()
 
+
         drax_foreground = (
             "drax" in application_text
             or "draxagent" in application_text
@@ -45,6 +43,12 @@ class Awareness:
                 "python3.11.exe",
             }
         )
+
+
+        # ----------------------------------------------------
+        # If Drax is foreground, preserve the last real
+        # desktop activity instead.
+        # ----------------------------------------------------
 
         if drax_foreground:
 
@@ -59,36 +63,43 @@ class Awareness:
             )
 
             if activity.windows:
-                window = activity.windows[-1]
+
+                window = (
+                    activity.windows[-1]
+                )
+
 
         return {
 
-            # -------------------------------------------------
-            # Live desktop state
-            # -------------------------------------------------
-            # These fields are intentionally explicit so higher
-            # layers can reason about the user's current context
-            # without scraping UI text.
+            "current_application":
+                application,
 
-            "current_application": application,
+            "current_process":
+                process,
 
-            "current_process": process,
+            "current_window":
+                window,
 
-            "current_window": window,
+            "activity":
+                activity.name,
 
-            "activity": activity.name,
+            "activity_confidence":
+                activity.confidence,
 
-            "activity_confidence": activity.confidence,
+            "activity_started_at":
+                activity.started_at,
 
-            "activity_started_at": activity.started_at,
+            "recent_memory":
+                memory.get_recent(5),
 
-            "recent_memory": memory.get_recent(5),
+            "recent_sessions":
+                experience.recent()[-5:],
 
-            "recent_sessions": experience.recent()[-5:],
+            "foreground":
+                desktop_state.foreground,
 
-            "foreground": desktop_state.foreground,
-
-            "drax_foreground": drax_foreground,
+            "drax_foreground":
+                drax_foreground,
 
         }
 

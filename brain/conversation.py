@@ -1,6 +1,7 @@
 from core import understand
 from executor import execute
 
+from brain.execution_result import ExecutionResult
 from brain.companion import companion
 
 from skills.open_app import (
@@ -52,19 +53,28 @@ class ConversationEngine:
     # NORMALIZE MESSAGE
     # =============================================================
 
-    def _normalize(self, message):
+    def _normalize(
+        self,
+        message
+    ):
 
         if message is None:
+
             return ""
 
-        return str(message).strip().lower()
+        return str(
+            message
+        ).strip().lower()
 
 
     # =============================================================
     # PENDING ACTION
     # =============================================================
 
-    def _handle_pending_action(self, message):
+    def _handle_pending_action(
+        self,
+        message
+    ):
 
         status = self.pending_action.get(
             "status"
@@ -76,14 +86,13 @@ class ConversationEngine:
 
         # ---------------------------------------------------------
         # Cancellation
-        #
-        # Let the actual skill handler process cancellation so
-        # existing skill-specific behaviour remains intact.
         # ---------------------------------------------------------
 
         if normalized in self.cancellation_words:
 
-            if status == "close_confirmation_required":
+            if status == (
+                "close_confirmation_required"
+            ):
 
                 result = handle_close_pending(
                     self.pending_action,
@@ -104,17 +113,13 @@ class ConversationEngine:
 
         # ---------------------------------------------------------
         # Confirmation
-        #
-        # IMPORTANT:
-        #
-        # Do NOT send "yes" through understand().
-        #
-        # It belongs to the pending operation.
         # ---------------------------------------------------------
 
         if normalized in self.confirmation_words:
 
-            if status == "close_confirmation_required":
+            if status == (
+                "close_confirmation_required"
+            ):
 
                 result = handle_close_pending(
                     self.pending_action,
@@ -129,11 +134,13 @@ class ConversationEngine:
                 )
 
             # -----------------------------------------------------
-            # If the skill created another pending operation,
-            # preserve it.
+            # If another interaction is required, preserve it.
             # -----------------------------------------------------
 
-            if isinstance(result, dict):
+            if isinstance(
+                result,
+                dict
+            ):
 
                 next_status = result.get(
                     "status"
@@ -150,9 +157,7 @@ class ConversationEngine:
                     return result
 
             # -----------------------------------------------------
-            # Operation finished.
-            #
-            # Clear pending state AND return the actual result.
+            # Operation completed.
             # -----------------------------------------------------
 
             self.pending_action = None
@@ -161,19 +166,19 @@ class ConversationEngine:
 
 
         # ---------------------------------------------------------
-        # Other responses
+        # Other pending responses
         #
         # Examples:
         #
-        # "1"
-        # "2"
-        # "Chrome"
-        # "actually open Edge"
-        #
-        # These must still go through the skill's pending handler.
+        # 1
+        # 2
+        # Chrome
+        # actually open Edge
         # ---------------------------------------------------------
 
-        if status == "close_confirmation_required":
+        if status == (
+            "close_confirmation_required"
+        ):
 
             result = handle_close_pending(
                 self.pending_action,
@@ -189,10 +194,13 @@ class ConversationEngine:
 
 
         # ---------------------------------------------------------
-        # Keep pending state if another interaction is required.
+        # Preserve pending state if required.
         # ---------------------------------------------------------
 
-        if isinstance(result, dict):
+        if isinstance(
+            result,
+            dict
+        ):
 
             next_status = result.get(
                 "status"
@@ -245,13 +253,6 @@ class ConversationEngine:
 
         # =========================================================
         # STANDALONE CONFIRMATION
-        # =========================================================
-        #
-        # If the user says "yes" without a pending action,
-        # DON'T accidentally turn it into a generic successful
-        # command.
-        #
-        # Let Drax respond conversationally instead.
         # =========================================================
 
         if normalized in self.confirmation_words:
@@ -338,59 +339,159 @@ class ConversationEngine:
 
         if task.intent == "compound":
 
-            action_results = result.data.get(
-                "results",
-                []
+            action_results = (
+                result.data.get(
+                    "results",
+                    []
+                )
+                if isinstance(
+                    result,
+                    ExecutionResult
+                )
+                else []
             )
 
-            conversation_tasks = result.data.get(
-                "conversation_tasks",
-                []
+            conversation_tasks = (
+                result.data.get(
+                    "conversation_tasks",
+                    []
+                )
+                if isinstance(
+                    result,
+                    ExecutionResult
+                )
+                else []
             )
 
             completed_actions = []
 
             for item in action_results:
 
-                child_task = item["task"]
-                child_result = item["result"]
+                child_task = item.get(
+                    "task"
+                )
+
+                child_result = item.get(
+                    "result"
+                )
+
+                if child_task is None:
+                    continue
+
+                if not isinstance(
+                    child_result,
+                    ExecutionResult
+                ):
+                    continue
+
+                action_data = (
+                    child_result.data
+                    or {}
+                )
 
                 completed_actions.append({
-                    "intent": child_task.intent,
-                    "target": child_task.target,
-                    "success": child_result.success,
-                    "message": child_result.message
+                    "intent": (
+                        child_task.intent
+                    ),
+                    "target": (
+                        child_task.target
+                    ),
+                    "success": (
+                        child_result.success
+                    ),
+                    "message": (
+                        child_result.message
+                    ),
+                    "data": action_data,
                 })
 
 
+            # -----------------------------------------------------
+            # Extract conversational component, if any.
+            # -----------------------------------------------------
+
+            conversation_text = None
+
             if conversation_tasks:
 
-                conversation_text = " ".join(
-                    child.data.get(
-                        "raw_command",
-                        ""
+                conversation_parts = []
+
+                for child in conversation_tasks:
+
+                    if not child.data:
+                        continue
+
+                    raw_command = (
+                        child.data.get(
+                            "raw_command",
+                            ""
+                        )
                     )
-                    for child in conversation_tasks
-                )
 
-                return companion.chat(
-                    message,
-                    execution={
-                        "success": result.success,
-                        "actions": completed_actions,
-                        "conversation": conversation_text
-                    }
-                )
+                    if raw_command:
+
+                        conversation_parts.append(
+                            raw_command
+                        )
+
+                if conversation_parts:
+
+                    conversation_text = (
+                        " ".join(
+                            conversation_parts
+                        )
+                    )
 
 
-            return result
+            # -----------------------------------------------------
+            # IMPORTANT:
+            #
+            # A compound command can perform several operations
+            # without producing a user-facing sentence.
+            #
+            # Example:
+            #
+            # "Find main.ts and inspect it."
+            #
+            # The executor performs the operations.
+            #
+            # ConversationEngine collects the evidence.
+            #
+            # Companion turns that evidence into Drax's response.
+            # -----------------------------------------------------
+
+            return companion.chat(
+                message,
+                execution={
+                    "success": (
+                        result.success
+                        if isinstance(
+                            result,
+                            ExecutionResult
+                        )
+                        else False
+                    ),
+                    "actions": (
+                        completed_actions
+                    ),
+                    "conversation": (
+                        conversation_text
+                    ),
+                }
+            )
 
 
         # =========================================================
         # NORMAL REQUEST
         # =========================================================
 
-        if result.handled:
+        if (
+            isinstance(
+                result,
+                ExecutionResult
+            )
+            and result.handled
+        ):
 
             return result
 
@@ -399,14 +500,36 @@ class ConversationEngine:
         # CONVERSATIONAL FALLBACK
         # =========================================================
 
+        if isinstance(
+            result,
+            ExecutionResult
+        ):
+
+            return companion.chat(
+                message,
+                execution={
+                    "handled": (
+                        result.handled
+                    ),
+                    "success": (
+                        result.success
+                    ),
+                    "message": (
+                        result.message
+                    ),
+                    "data": (
+                        result.data
+                    )
+                }
+            )
+
+
+        # ---------------------------------------------------------
+        # Defensive fallback
+        # ---------------------------------------------------------
+
         return companion.chat(
-            message,
-            execution={
-                "handled": result.handled,
-                "success": result.success,
-                "message": result.message,
-                "data": result.data
-            }
+            message
         )
 
 

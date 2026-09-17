@@ -2,21 +2,251 @@ from models import Task
 from skills.skill_loader import get_skill
 
 from brain.execution_result import ExecutionResult
-
 from brain.visual_bridge import visual_bridge
+
+
+def _file_operation(task):
+
+    from file_access import inspect, search
+
+    query = (
+        task.target
+        or task.data.get("target")
+        or task.data.get("file")
+        or ""
+    ).strip()
+
+    raw = (
+        task.data.get("raw_command")
+        or ""
+    ).strip()
+
+    effective_query = query or raw
+
+    if not effective_query:
+
+        return ExecutionResult(
+            handled=True,
+            success=False,
+            message=(
+                "I need to know which file "
+                "you want me to inspect."
+            ),
+            data={
+                "file_context": {
+                    "success": False,
+                    "kind": "file",
+                },
+                "ai_response": True,
+            },
+        )
+
+
+    # =================================================
+    # FILE SEARCH
+    # =================================================
+
+    if task.intent == "file_search":
+
+        result = search(
+            effective_query
+        )
+
+        return ExecutionResult(
+            handled=True,
+            success=result.get(
+                "success",
+                False
+            ),
+            message=result.get(
+                "message",
+                ""
+            ),
+            data={
+                "file_context": result,
+                "ai_response": True,
+            },
+        )
+
+
+    # =================================================
+    # FILE INSPECTION
+    # =================================================
+
+    result = inspect(
+        effective_query,
+        include_related=True,
+    )
+
+    return ExecutionResult(
+        handled=True,
+        success=result.get(
+            "success",
+            False
+        ),
+        message=result.get(
+            "message",
+            ""
+        ),
+        data={
+            "file_context": result,
+            "ai_response": True,
+        },
+    )
+
+
+def _app_status(task):
+
+    from app_monitor import status
+
+    target = (
+        task.target
+        or task.data.get("target")
+        or ""
+    ).strip()
+
+    if not target:
+
+        return ExecutionResult(
+            handled=True,
+            success=False,
+            message=(
+                "I need an application "
+                "to check."
+            ),
+            data={
+                "app_status": {
+                    "success": False,
+                    "message": (
+                        "No application supplied."
+                    ),
+                },
+                "ai_response": True,
+            },
+        )
+
+    result = status(
+        target
+    )
+
+    return ExecutionResult(
+        handled=True,
+        success=result.get(
+            "success",
+            False
+        ),
+        message=result.get(
+            "message",
+            ""
+        ),
+        data={
+            "app_status": result,
+            "ai_response": True,
+        },
+    )
+
+
+def _wait_for_app(task):
+
+    from app_monitor import (
+        watch_until_responsive
+    )
+
+    target = (
+        task.target
+        or task.data.get("target")
+        or ""
+    ).strip()
+
+    if not target:
+
+        return ExecutionResult(
+            handled=True,
+            success=False,
+            message=(
+                "I need an application "
+                "to watch."
+            ),
+        )
+
+    raw = (
+        task.data.get("raw_command")
+        or ""
+    ).lower()
+
+    timeout = 300
+    interval = 2.0
+
+    if "minute" in raw:
+
+        import re
+
+        match = re.search(
+            r"(\d+(?:\.\d+)?)\s*minutes?",
+            raw,
+        )
+
+        if match:
+
+            timeout = max(
+                10,
+                float(match.group(1)) * 60,
+            )
+
+    elif "second" in raw:
+
+        import re
+
+        match = re.search(
+            r"(\d+(?:\.\d+)?)\s*seconds?",
+            raw,
+        )
+
+        if match:
+
+            timeout = max(
+                5,
+                float(match.group(1)),
+            )
+
+
+    watch_until_responsive(
+        target,
+        timeout=timeout,
+        interval=interval,
+    )
+
+    return ExecutionResult(
+        handled=True,
+        success=True,
+        message=(
+            f"👀 I'm watching '{target}'. "
+            "I'll tell you when it responds again."
+        ),
+        data={
+            "watching": True,
+            "target": target,
+            "timeout": timeout,
+            "interval": interval,
+        },
+    )
+
 
 def execute(task: Task):
 
-    # -----------------------
-    # Compound command
-    # -----------------------
+    # =================================================
+    # COMPOUND COMMAND
+    # =================================================
 
     if task.intent == "compound":
 
         results = []
         conversation_tasks = []
 
-        for child_task in task.data.get("tasks", []):
+        for child_task in task.data.get(
+            "tasks",
+            []
+        ):
 
             if child_task.intent == "conversation":
 
@@ -26,50 +256,56 @@ def execute(task: Task):
 
                 continue
 
+
             child_result = execute(
                 child_task
             )
 
             results.append({
                 "task": child_task,
-                "result": child_result
+                "result": child_result,
             })
+
 
         success = all(
             item["result"].success
             for item in results
             if isinstance(
                 item["result"],
-                ExecutionResult
+                ExecutionResult,
             )
         )
 
-        handled = bool(results)
+        handled = bool(
+            results
+        )
 
         return ExecutionResult(
             handled=handled,
             success=success,
             data={
                 "results": results,
-                "conversation_tasks": conversation_tasks
-            }
+                "conversation_tasks": (
+                    conversation_tasks
+                ),
+            },
         )
 
 
-    # -----------------------
-    # Greeting
-    # -----------------------
+    # =================================================
+    # GREETING
+    # =================================================
 
     if task.intent == "greeting":
 
         return ExecutionResult(
-            handled=False
+            handled=False,
         )
 
 
-    # -----------------------
-    # Exit
-    # -----------------------
+    # =================================================
+    # EXIT
+    # =================================================
 
     if task.intent == "exit":
 
@@ -80,41 +316,88 @@ def execute(task: Task):
         )
 
 
-    # -----------------------
-    # Cancelled
-    # -----------------------
+    # =================================================
+    # CANCELLED
+    # =================================================
 
     if task.intent == "cancelled":
 
         return ExecutionResult(
             handled=True,
             success=True,
-            message="👍 Okay, I won't do that."
+            message=(
+                "👍 Okay, I won't do that."
+            ),
         )
-        
-    # -----------------------
-    # Visual observation
-    # -----------------------
+
+
+    # =================================================
+    # FILE INTELLIGENCE
+    # =================================================
+
+    if task.intent in {
+        "file_search",
+        "file_inspect",
+    }:
+
+        return _file_operation(
+            task
+        )
+
+
+    # =================================================
+    # APPLICATION STATUS
+    # =================================================
+
+    if task.intent == "app_status":
+
+        return _app_status(
+            task
+        )
+
+
+    # =================================================
+    # WAIT FOR APPLICATION
+    # =================================================
+
+    if task.intent == "wait_for_app":
+
+        return _wait_for_app(
+            task
+        )
+
+
+    # =================================================
+    # VISUAL OBSERVATION
+    # =================================================
 
     if task.intent == "visual_observe":
 
         result = visual_bridge.observe(
             instruction=(
-                task.data.get("raw_command")
-                or "Describe the current desktop."
+                task.data.get(
+                    "raw_command"
+                )
+                or
+                "Describe the current desktop."
             )
         )
 
-        if not result.get("success", False):
+        if not result.get(
+            "success",
+            False
+        ):
 
             return ExecutionResult(
                 handled=True,
                 success=False,
                 message=(
-                    "I couldn't understand the current screen."
+                    "I couldn't understand "
+                    "the current screen."
                 ),
-                data=result
+                data=result,
             )
+
 
         vision = result.get(
             "vision",
@@ -123,7 +406,7 @@ def execute(task: Task):
 
         summary = vision.get(
             "summary",
-            "I can see the current desktop."
+            "I can see the current desktop.",
         )
 
         application = vision.get(
@@ -140,11 +423,13 @@ def execute(task: Task):
         ]
 
         if application:
+
             message_parts.append(
                 f"Main application: {application}."
             )
 
         if text:
+
             visible_text = ", ".join(
                 str(item)
                 for item in text[:12]
@@ -154,17 +439,20 @@ def execute(task: Task):
                 f"Visible text: {visible_text}."
             )
 
+
         return ExecutionResult(
             handled=True,
             success=True,
-            message=" ".join(message_parts),
-            data=result
+            message=" ".join(
+                message_parts
+            ),
+            data=result,
         )
 
 
-    # -----------------------
-    # Visual click
-    # -----------------------
+    # =================================================
+    # VISUAL CLICK
+    # =================================================
 
     if task.intent == "visual_click":
 
@@ -178,38 +466,47 @@ def execute(task: Task):
             return ExecutionResult(
                 handled=True,
                 success=False,
-                message="I need to know what you want me to click."
+                message=(
+                    "I need to know what "
+                    "you want me to click."
+                ),
             )
+
 
         result = visual_bridge.click(
             target
         )
 
-        if not result.get("success", False):
+        if not result.get(
+            "success",
+            False
+        ):
 
             return ExecutionResult(
                 handled=True,
                 success=False,
                 message=(
-                    f"I couldn't successfully click "
-                    f"'{target}'."
+                    f"I couldn't successfully "
+                    f"click '{target}'."
                 ),
-                data=result
+                data=result,
             )
+
 
         return ExecutionResult(
             handled=True,
             success=True,
             message=(
-                f"Clicked '{target}' and verified the screen."
+                f"Clicked '{target}' "
+                "and verified the screen."
             ),
-            data=result
+            data=result,
         )
 
 
-    # -----------------------
-    # Skills
-    # -----------------------
+    # =================================================
+    # EXISTING SKILLS
+    # =================================================
 
     skill = get_skill(
         task.intent
@@ -218,7 +515,7 @@ def execute(task: Task):
     if not skill:
 
         return ExecutionResult(
-            handled=False
+            handled=False,
         )
 
 
@@ -227,10 +524,6 @@ def execute(task: Task):
     )
 
 
-    # -----------------------
-    # New-style skill
-    # -----------------------
-
     if isinstance(
         result,
         ExecutionResult
@@ -238,10 +531,6 @@ def execute(task: Task):
 
         return result
 
-
-    # -----------------------
-    # Pending skill operation
-    # -----------------------
 
     if isinstance(
         result,
@@ -255,36 +544,20 @@ def execute(task: Task):
         if status in {
             "confirmation_required",
             "selection_required",
-            "close_confirmation_required"
+            "close_confirmation_required",
         }:
-
-            # IMPORTANT:
-            # Return the pending operation directly.
-            #
-            # ConversationEngine will remember it
-            # and route the user's next message
-            # ("yes", "no", "1", etc.) back to
-            # the correct skill handler.
 
             return result
 
 
-        # -----------------------
-        # Other dictionary result
-        # -----------------------
-
         return ExecutionResult(
             handled=True,
             success=False,
-            data=result
+            data=result,
         )
 
 
-    # -----------------------
-    # Old-style skill
-    # -----------------------
-
     return ExecutionResult(
         handled=True,
-        success=True
+        success=True,
     )
