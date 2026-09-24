@@ -1,253 +1,227 @@
 # DraxAgent 🤖
 
-> An AI desktop companion that observes your activity, understands context, and interacts with your computer through natural language.
+> An AI desktop companion designed to understand your desktop,
+> respond to natural language, and assist with real computer tasks.
 
-DraxAgent is a modular AI desktop companion built to go beyond simple chatbot-style interaction.
+DraxAgent is an experimental, modular AI desktop agent built to go
+beyond chatbot-style interaction.
 
-Instead of only responding to messages, DraxAgent maintains awareness of the desktop around it — including the active application, window context, recent activity, conversations, and executed actions.
+It combines AI reasoning with desktop observation, application
+context, activity intelligence, and computer interaction.
 
-The goal is to build an assistant that doesn't just wait for commands.
-
-It understands what's happening.
-
----
-
-## 🧠 What is DraxAgent?
-
-DraxAgent is designed around the idea of an **intelligent desktop companion**.
-
-It combines:
-
-- Desktop observation
-- Context and memory
-- AI-powered understanding
-- Natural-language command execution
-- Activity intelligence
-- Conversational interaction
-
-For example, instead of simply knowing:
-
-> "Microsoft Edge is open"
-
-DraxAgent can infer:
-
-> "You're managing your weekly to-do list in Notion."
-
-The distinction is important.
-
-DraxAgent is not just tracking applications.
-
-It is beginning to understand **what you're doing with them**.
+The long-term goal is an assistant that understands what is happening
+on your computer and can help you act on that context—with appropriate
+user permission.
 
 ---
 
-## ✨ Current Features
+## 🧠 What Is DraxAgent?
+
+DraxAgent is designed around the idea of an intelligent desktop
+companion.
+
+Rather than treating every request as an isolated message, DraxAgent
+is being developed to use signals such as:
+
+- The active application and window
+- Recent desktop activity
+- Conversation context
+- Available execution results
+- Relevant information from the user's environment
+
+For example, DraxAgent should eventually understand a request like:
+
+> "Check what's wrong with my code here."
+
+In a context-aware workflow, it could identify the relevant editor
+and file, inspect the code, explain the issue, and ask before making
+changes.
+
+This is the direction of the project—not a claim that every part of
+that workflow is already complete.
+
+---
+
+## ✨ Current Capabilities
+
+DraxAgent is actively evolving. The following systems are present
+in the project, though individual capabilities may still be under
+development.
 
 ### 🖥️ Desktop Awareness
 
-Continuously observes the active desktop window and tracks:
+Observes desktop-window information, including signals such as:
 
-- Application
-- Process
-- Executable
+- Application and process
+- Executable path
 - Window title
-- Foreground state
-- Window changes
+- Foreground-window changes
 
 ### 🧠 AI Activity Intelligence
 
-Uses an AI-powered activity classifier to infer the user's current activity from desktop context.
+Uses AI-assisted classification to infer the user's current activity
+from desktop context and visual signals.
 
-Examples:
+The goal is to identify what the user is doing—not merely which
+application is open.
 
-- `Reading Articles`
-- `Managing To-do List`
-- `Web Searching`
-- `Taking Screenshot`
+### 💬 AI Conversation
 
-The system is designed to avoid relying on a giant hard-coded list of activities.
+Uses the Google Gemini API for natural-language understanding and
+response generation.
 
-### 💾 Working Memory
-
-Maintains recent conversational and desktop events so DraxAgent can use context instead of treating every interaction as completely independent.
+Conversation context and available execution information can be
+included when generating a response.
 
 ### 🎯 Intent Understanding
 
-Understands whether a request is:
+DraxAgent includes intent-routing logic for distinguishing
+conversational requests from actionable commands.
 
-- Conversational
-- An actionable command
-- A compound command
-- A request requiring clarification or confirmation
+The system is being developed to support compound requests,
+clarification, and confirmation.
 
-### ⚡ Skill System
+### ⚡ Desktop Interaction
 
-Executes desktop actions through natural language.
+The project includes desktop-control and skill infrastructure for
+computer interaction.
 
-Examples:
+Examples of intended workflows include:
 
-```text
-Open Chrome
-Close Spotify
-Set a timer
-```
+- Opening applications
+- Interacting with desktop elements
+- Running supported actions
+- Reporting execution results
 
-### 🔀 Compound Commands
+Available actions depend on the installed skills and current
+implementation.
 
-Supports multiple actions within a single request.
+### 🕒 Activity History
 
-Open Chrome and then open Spotify
-💬 Context-Aware Conversation
+Tracks recent activity classifications to provide continuity
+and support context-aware features.
 
-DraxAgent can combine:
+### 🎨 Desktop Interface
 
-```What the user said
-Current desktop context
-Recent memory
-Action execution results
-Current activity
-```
+The current desktop interface is built with:
 
-to produce more context-aware responses.
+- Tauri 2
+- HTML and CSS
+- TypeScript
 
-### 🎭 Personality System
+The Python backend runs through a bridge process that communicates
+with the Tauri application.
 
-Maintains a consistent conversational personality instead of treating every response as an isolated AI completion.
-
-### 📡 Event-Driven Architecture
-
-Core components communicate through an internal event bus.
-
-This allows systems such as:
-
-Observer
-   ↓
-Event Bus
-   ↓
-Memory / Context / Activity Intelligence
-   ↓
-GUI
-
-to remain relatively independent from each other.
-
-### 🎨 Desktop GUI
-
-A PyQt-based interface provides:
-
-Live activity display
-Chat interaction
-Activity updates
-Execution feedback
-Desktop companion-style UI
+---
 
 ## 🏗️ Architecture
 
-DraxAgent is built as a collection of modular systems rather than one large assistant class.
-```
-                    ┌──────────────────┐
-                    │      DraxAgent   │
-                    └────────┬─────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              │                             │
-       Conversation Engine          Desktop Awareness
-              │                             │
-       ┌──────┴──────┐                ┌─────┴─────┐
-       │             │                │           │
-   Understanding  Execution       Observer     Context
-       │             │                │           │
-       └──────┬──────┘                └─────┬─────┘
-              │                             │
-              └─────────────┬───────────────┘
-                            │
-                       Event Bus
-                            │
-                 ┌──────────┴──────────┐
-                 │                     │
-          Activity Engine          Memory
-                 │
-          AI Activity Classifier
-                 │
-              Gemini
-```
+DraxAgent uses a modular architecture. The frontend, Python
+intelligence systems, desktop observation, and execution components
+are designed to evolve independently.
 
-The architecture is intentionally modular so individual systems can evolve without rewriting the entire application.
+```text
+                 ┌─────────────────────┐
+                 │   Tauri Desktop UI  │
+                 │   HTML / CSS / TS   │
+                 └──────────┬──────────┘
+                            │
+                     Python Bridge
+                            │
+                 ┌──────────▼──────────┐
+                 │   Python Backend    │
+                 └──────────┬──────────┘
+                            │
+              ┌─────────────┴─────────────┐
+              │                           │
+      Conversation & AI            Desktop Awareness
+              │                           │
+      Intent Understanding       Observer / Context
+              │                           │
+       Skills / Execution         Activity Intelligence
+              │                           │
+              └─────────────┬─────────────┘
+                            │
+                     Gemini API
+
+
+The architecture is under active development. Components and execution flows may change as the agent becomes more capable. 
+```
 
 ## 🛠️ Tech Stack
-Language: Python
-AI: Google Gemini API
-GUI: PyQt
-Desktop Observation: Windows APIs / pywin32
-Process Information: psutil
-Architecture: Event-driven modular components
-Configuration: Environment variables
 
-## 🚀 Getting Started
-Prerequisites
-Python 3.10+
-Windows
-A Google Gemini API key
-Installation
-git clone https://github.com/Rathod6157/DraxAgent.git
+| Component | Technology |
+|---|---|
+| Backend | Python |
+| AI Provider | Google Gemini API |
+| Desktop Shell | Tauri 2 |
+| Frontend | TypeScript, HTML, CSS |
+| Desktop Interaction | Python desktop-control libraries |
+| Desktop Observation | Windows APIs and supporting libraries |
+| Communication | Tauri ↔ Python bridge |
+
+## 🚀 Development Setup
+
+DraxAgent is currently developed for Windows.
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js and npm
+- Rust toolchain
+- Tauri 2 Windows development prerequisites
+- A Google Gemini API key
+
+### 1. Clone the Repository
+
+Run these commands from the directory where you want the project:
+
+```powershell
+git clone https://github.com/Rathod657/DraxAgent.git
 cd DraxAgent
+```
+If you already have the repository, skip this step.
 
+### 2. Create a Python Virtual Environment
+```powershell
+python -m venv .venv
+```
+### 3. Activate the Virtual Environment
 
+For PowerShell:
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+```
+
+This only changes the execution policy for the current PowerShell session.
+Alternatively, use Command Prompt:
+```bat
+.venv\Scripts\activate.bat
+```
+### 4. Install Python Dependencies
+
+If the repository contains a requirements.txt file:
+```powershell
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+```
 
-Create a .env file:
+### 5. Configure Environment Variables
 
-GEMINI_API_KEY=your_api_key_here
+Create a .env file in the project root and add your Gemini API key:
+```env
+GEMINI_API_KEY=your_gemini_api_key
+```
+Do not commit your .env file or expose your API key.
 
-Then start DraxAgent using the project's entry point.
+### 6. Run DraxAgent
 
-## 🧪 Project Status
+Start the Tauri development environment:
+```powershell
+cd drax-ui
+npm install
+npm run tauri dev
+```
+DraxAgent is under active development, so setup commands and dependencies may change as the project evolves.
 
-DraxAgent is currently under active development.
-
-The core systems are already working, including:
-
-Desktop observation
-Application identification
-Context tracking
-AI activity classification
-Natural-language command execution
-Conversation handling
-Live GUI activity updates
-
-The project is now moving toward making the assistant more reliable, context-aware, and genuinely useful in day-to-day desktop workflows.
-
-## 🗺️ Roadmap
-Intelligence
- Smarter activity classification
- Activity confidence and stability
- Activity history and patterns
- Context-aware reasoning
- Better handling of ambiguous activities
-Memory
- Persistent long-term memory
- Memory relevance scoring
- Better session continuity
-Desktop Awareness
- Richer desktop signals
- More application-specific context
- Improved activity transitions
-Agent Capabilities
- More desktop skills
- Multi-step task execution
- Better confirmation and recovery
- Proactive assistance
-Performance
- Activity classification caching
- Debouncing rapid desktop changes
- Reduced unnecessary AI calls
- Improved asynchronous processing
-
-## 🤝 Contributing
-
-DraxAgent is currently a personal project and an ongoing experiment in building an intelligent desktop companion.
-
-Ideas, feedback, and contributions are welcome.
-
-## 📜 License
-
-License information will be added as the project develops.

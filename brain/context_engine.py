@@ -10,6 +10,8 @@ from brain.memory import memory
 from brain.activity_history import activity_history
 from brain.awareness import Awareness
 
+from brain.resource_context import resource_context
+from brain.capability_registry import capabilities
 
 class ContextEngine:
     """
@@ -454,14 +456,32 @@ class ContextEngine:
         should consume.
         """
 
+        live = self.live()
+
         snapshot = {
             "timestamp": time.time(),
 
-            "live": self.live(),
+            "live": live,
 
             "session": self.session(),
 
-            "derived": self.derived()
+            "recent": self.recent(),
+
+            "derived": self.derived(),
+
+            "resource": resource_context.build(
+                application=live.get(
+                    "application"
+                ),
+                process=live.get(
+                    "process"
+                ),
+                window=live.get(
+                    "window"
+                ),
+            ),
+
+            "capabilities": capabilities.describe(),
         }
 
         if include_recent:
@@ -494,6 +514,7 @@ class ContextEngine:
         )
 
         result = {
+
             "current_application": live[
                 "application"
             ],
@@ -518,13 +539,31 @@ class ContextEngine:
                 "activity_started_at"
             ],
 
+            "foreground": live.get(
+                "foreground"
+            ),
+
             "last_user_message": session[
                 "last_user_message"
             ],
 
             "recent_events": session[
                 "events"
-            ]
+            ],
+
+            "resource": resource_context.build(
+                application=live.get(
+                    "application"
+                ),
+                process=live.get(
+                    "process"
+                ),
+                window=live.get(
+                    "window"
+                ),
+            ),
+
+            "capabilities": capabilities.describe(),
         }
 
         if message:

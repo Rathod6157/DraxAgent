@@ -4,6 +4,7 @@ from skills.skill_loader import get_skill
 from brain.execution_result import ExecutionResult
 from brain.visual_bridge import visual_bridge
 
+from resource_opener import resource_opener
 
 def _file_operation(task):
 
@@ -503,6 +504,55 @@ def execute(task: Task):
             data=result,
         )
 
+    # =================================================
+    # OPEN LOCAL RESOURCE
+    # =================================================
+
+    if task.intent == "open_resource":
+
+        target = (
+            task.target
+            or task.data.get(
+                "target"
+            )
+            or task.data.get(
+                "path"
+            )
+            or ""
+        ).strip()
+
+        if not target:
+
+            return ExecutionResult(
+                handled=True,
+                success=False,
+                message=(
+                    "I need to know which "
+                    "resource you want me to open."
+                ),
+            )
+
+
+        result = resource_opener.open(
+            target
+        )
+
+
+        return ExecutionResult(
+            handled=True,
+            success=result.get(
+                "success",
+                False
+            ),
+            message=result.get(
+                "message",
+                ""
+            ),
+            data={
+                "resource": result,
+                "ai_response": True,
+            },
+        )
 
     # =================================================
     # EXISTING SKILLS

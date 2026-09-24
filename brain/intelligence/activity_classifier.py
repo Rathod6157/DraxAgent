@@ -275,6 +275,28 @@ Return the normal ScreenVision JSON structure.
             )
 
             # ----------------------------------------------------
+            # Safe metadata-only fallback.
+            #
+            # Do NOT make another Gemini request here.
+            # Activity classification must never delay Drax's
+            # main conversation or action pipeline.
+            # ----------------------------------------------------
+
+            application = str(
+                context_data.get("application")
+                or "Unknown application"
+            ).strip()
+
+            result = {
+                "activity": f"Using {application}",
+                "confidence": 35
+            }
+
+            # Only deliver results for the latest request.
+            if self._is_current(generation):
+                callback(result)
+
+            # ----------------------------------------------------
             # Metadata-only fallback
             # ----------------------------------------------------
 

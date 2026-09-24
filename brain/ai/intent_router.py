@@ -22,6 +22,7 @@ class IntentRouter:
         "wait_for_app",
         "visual_observe",
         "visual_click",
+        "open_resource",
         "compound",
     }
 
@@ -47,7 +48,7 @@ class IntentRouter:
         if not history_text:
             history_text = "No previous conversation."
 
-        prompt = f"""
+        prompt = """
 You are DraxAgent's intent router.
 
 Your job is ONLY to understand what the user wants
@@ -416,6 +417,88 @@ For wait_for_app:
 - target MUST contain only the application name.
 - Do not put "wait", "watch", "responding", or "again" in target.
 
+30C. OPENING LOCAL RESOURCES:
+
+Use "open_resource" when the user wants Drax to open
+a local file or resource on the computer.
+
+Examples:
+
+"Open main.ts"
+"Open my resume"
+"Open that PDF"
+"Open this document"
+"Open the image"
+"Launch this file"
+
+For open_resource:
+
+- target MUST contain only the user's resource target.
+- Do not put "open" or "launch" in target.
+- Do not assume a specific application such as VS Code.
+- Windows will choose the associated application unless
+  the user explicitly specifies an application.
+
+Examples:
+
+"Open main.ts"
+
+->
+
+{
+  "intent": "open_resource",
+  "target": "main.ts"
+}
+
+"Open my resume"
+
+->
+
+{
+  "intent": "open_resource",
+  "target": "my resume"
+}
+
+RESOURCE REASONING RULE:
+
+If the user's request asks a question ABOUT a named local
+file/resource, Drax must acquire that resource before answering.
+
+Examples:
+
+"What does main.ts do?"
+-> file_inspect
+
+"What's wrong with main.ts?"
+-> file_inspect
+
+"Find the bug in main.ts"
+-> file_inspect
+
+"Explain conversation.py"
+-> file_inspect
+
+"Summarize my notes.txt"
+-> file_inspect
+
+"Read this file"
+-> file_inspect
+
+"Where is main.ts?"
+-> file_search
+
+"Find main.ts"
+-> file_search
+
+"Open main.ts"
+-> open_resource
+
+Do not classify a request as normal conversation merely
+because it is phrased as a question.
+
+A question about a local resource is still a resource
+operation when answering it requires reading that resource.
+
 31. Return ONLY valid JSON.
 
 
@@ -486,12 +569,24 @@ For compound:
 
 
 Recent conversation:
-{history_text}
+__DRAX_HISTORY__
 
 Current user message:
-{message}
+__DRAX_MESSAGE__
 """
+        prompt = (
+            prompt
+            .replace("__DRAX_HISTORY__", history_text)
+            .replace("__DRAX_MESSAGE__", message)
+        )
 
+        # The JSON examples were escaped for an f-string.
+        # Restore them now that the prompt is a normal string.
+        prompt = (
+            prompt
+            .replace("{{", "{")
+            .replace("}}", "}")
+        )
         raw = router.reason(
             prompt.strip()
         )

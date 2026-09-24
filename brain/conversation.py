@@ -230,33 +230,22 @@ class ConversationEngine:
     # PROCESS
     # =============================================================
 
-    def process(
-        self,
-        message
-    ):
+    def process(self, message):
 
-        normalized = self._normalize(
-            message
-        )
+        normalized = self._normalize(message)
 
-
-        # =========================================================
+        # ---------------------------------------------------------
         # PENDING ACTION
-        # =========================================================
+        # ---------------------------------------------------------
 
         if self.pending_action:
+            return self._handle_pending_action(message)
 
-            return self._handle_pending_action(
-                message
-            )
-
-
-        # =========================================================
+        # ---------------------------------------------------------
         # STANDALONE CONFIRMATION
-        # =========================================================
+        # ---------------------------------------------------------
 
         if normalized in self.confirmation_words:
-
             return companion.chat(
                 message,
                 execution={
@@ -270,13 +259,11 @@ class ConversationEngine:
                 }
             )
 
-
-        # =========================================================
+        # ---------------------------------------------------------
         # STANDALONE CANCELLATION
-        # =========================================================
+        # ---------------------------------------------------------
 
         if normalized in self.cancellation_words:
-
             return companion.chat(
                 message,
                 execution={
@@ -290,246 +277,243 @@ class ConversationEngine:
                 }
             )
 
-
-        # =========================================================
+        # ---------------------------------------------------------
         # UNDERSTAND REQUEST
-        # =========================================================
+        # ---------------------------------------------------------
 
-        task = understand(
-            message
-        )
+        task = understand(message)
 
+        # ---------------------------------------------------------
+        # EXECUTE REQUEST
+        # ---------------------------------------------------------
 
-        # =========================================================
-        # EXECUTE
-        # =========================================================
+        result = execute(task)
 
-        result = execute(
-            task
-        )
-
-
-        # =========================================================
+        # ---------------------------------------------------------
         # STORE PENDING ACTION
-        # =========================================================
+        # ---------------------------------------------------------
 
-        if isinstance(
-            result,
-            dict
-        ):
+        if isinstance(result, dict):
 
-            status = result.get(
-                "status"
-            )
+            status = result.get("status")
 
             if status in {
                 "confirmation_required",
                 "selection_required",
                 "close_confirmation_required",
+                "web_fallback_confirmation_required",
             }:
-
                 self.pending_action = result
-
                 return result
 
-
-        # =========================================================
+        # ---------------------------------------------------------
         # COMPOUND COMMAND
-        # =========================================================
+        # ---------------------------------------------------------
 
         if task.intent == "compound":
 
-            action_results = (
-                result.data.get(
-                    "results",
-                    []
-                )
-                if isinstance(
-                    result,
-                    ExecutionResult
-                )
-                else []
+            result_data = getattr(result, "data", {}) or {}
+
+            action_results = result_data.get(
+                "results",
+                []
             )
 
-            conversation_tasks = (
-                result.data.get(
-                    "conversation_tasks",
-                    []
-                )
-                if isinstance(
-                    result,
-                    ExecutionResult
-                )
-                else []
+            conversation_tasks = result_data.get(
+                "conversation_tasks",
+                []
             )
 
             completed_actions = []
 
             for item in action_results:
 
-                child_task = item.get(
-                    "task"
-                )
-
-                child_result = item.get(
-                    "result"
-                )
-
-                if child_task is None:
-                    continue
-
-                if not isinstance(
-                    child_result,
-                    ExecutionResult
-                ):
-                    continue
-
-                action_data = (
-                    child_result.data
-                    or {}
-                )
+                child_task = item["task"]
+                child_result = item["result"]
 
                 completed_actions.append({
-                    "intent": (
-                        child_task.intent
+                    "intent": child_task.intent,
+                    "target": child_task.target,
+                    "success": getattr(
+                        child_result,
+                        "success",
+                        False
                     ),
-                    "target": (
-                        child_task.target
+                    "message": getattr(
+                        child_result,
+                        "message",
+                        ""
                     ),
-                    "success": (
-                        child_result.success
+                    "data": getattr(
+                        child_result,
+                        "data",
+                        {}
                     ),
-                    "message": (
-                        child_result.message
-                    ),
-                    "data": action_data,
                 })
 
-
-            # -----------------------------------------------------
-            # Extract conversational component, if any.
-            # -----------------------------------------------------
-
-            conversation_text = None
-
+            # If the compound request also contains conversation,
+            # let Drax explain the completed actions.
             if conversation_tasks:
 
-                conversation_parts = []
+                conversation_text = " ".join(
+                    child.data.get("raw_command", "")
+                    for child in conversation_tasks
+                )
 
-                for child in conversation_tasks:
-
-                    if not child.data:
-                        continue
-
-                    raw_command = (
-                        child.data.get(
-                            "raw_command",
-                            ""
-                        )
-                    )
-
-                    if raw_command:
-
-                        conversation_parts.append(
-                            raw_command
-                        )
-
-                if conversation_parts:
-
-                    conversation_text = (
-                        " ".join(
-                            conversation_parts
-                        )
-                    )
-
-
-            # -----------------------------------------------------
-            # IMPORTANT:
-            #
-            # A compound command can perform several operations
-            # without producing a user-facing sentence.
-            #
-            # Example:
-            #
-            # "Find main.ts and inspect it."
-            #
-            # The executor performs the operations.
-            #
-            # ConversationEngine collects the evidence.
-            #
-            # Companion turns that evidence into Drax's response.
-            # -----------------------------------------------------
-
-            return companion.chat(
-                message,
-                execution={
-                    "success": (
-                        result.success
-                        if isinstance(
+                return companion.chat(
+                    message,
+                    execution={
+                        "success": getattr(
                             result,
-                            ExecutionResult
-                        )
-                        else False
-                    ),
-                    "actions": (
-                        completed_actions
-                    ),
-                    "conversation": (
-                        conversation_text
-                    ),
-                }
+                            "success",
+                            False
+                        ),
+                        "actions": completed_actions,
+                        "conversation": conversation_text,
+                    }
+                )
+
+            # If the compound operation contains a resource
+            # that needs an AI explanation, pass the evidence on.
+            needs_ai = any(
+                isinstance(item.get("result"), object)
+                and isinstance(
+                    getattr(item.get("result"), "data", None),
+                    dict
+                )
+                and getattr(
+                    item.get("result"),
+                    "data",
+                    {}
+                ).get("ai_response")
+                for item in action_results
             )
 
+            if needs_ai:
+                response = companion.chat(
+                    message,
+                    execution={
+                        "success": getattr(
+                            result,
+                            "success",
+                            False
+                        ),
+                        "actions": completed_actions,
+                    }
+                )
 
-        # =========================================================
-        # NORMAL REQUEST
-        # =========================================================
-
-        if (
-            isinstance(
-                result,
-                ExecutionResult
-            )
-            and result.handled
-        ):
+                if isinstance(response, str) and response.strip():
+                    return response
 
             return result
 
+        # ---------------------------------------------------------
+        # NORMAL REQUEST
+        # ---------------------------------------------------------
 
-        # =========================================================
-        # CONVERSATIONAL FALLBACK
-        # =========================================================
+        if getattr(result, "handled", False):
 
-        if isinstance(
-            result,
-            ExecutionResult
-        ):
+            result_data = getattr(result, "data", {}) or {}
 
-            return companion.chat(
-                message,
-                execution={
-                    "handled": (
-                        result.handled
-                    ),
-                    "success": (
-                        result.success
-                    ),
-                    "message": (
-                        result.message
-                    ),
-                    "data": (
-                        result.data
+            # =====================================================
+            # IMPORTANT FIX:
+            #
+            # File/app operations can succeed without generating
+            # a user-facing explanation.
+            #
+            # If the executor marks the result as needing AI,
+            # pass the REAL execution evidence to Companion.
+            # =====================================================
+
+            if (
+                isinstance(result_data, dict)
+                and result_data.get("ai_response")
+            ):
+
+                response = companion.chat(
+                    message,
+                    execution=result
+                )
+
+                # ---------------------------------------------
+                # Gemini produced a useful response
+                # ---------------------------------------------
+
+                if isinstance(response, str) and response.strip():
+                    return response
+
+                # ---------------------------------------------
+                # Safe fallback if AI returns nothing
+                # ---------------------------------------------
+
+                file_context = result_data.get(
+                    "file_context",
+                    {}
+                )
+
+                if isinstance(file_context, dict):
+
+                    file_message = file_context.get("message")
+
+                    if file_message:
+                        return str(file_message)
+
+                    file_path = file_context.get("path")
+
+                    if file_path:
+                        return (
+                            "I found and inspected:\n"
+                            f"{file_path}\n\n"
+                            "However, I couldn't generate "
+                            "the full explanation this time."
+                        )
+
+                    matches = file_context.get(
+                        "matches",
+                        []
                     )
-                }
-            )
 
+                    if matches:
+                        paths = [
+                            item.get("path", "")
+                            for item in matches
+                            if isinstance(item, dict)
+                            and item.get("path")
+                        ]
+
+                        if paths:
+                            return (
+                                "I found these matching files:\n"
+                                + "\n".join(paths)
+                            )
+
+                # ---------------------------------------------
+                # App status / other tool fallback
+                # ---------------------------------------------
+
+                if getattr(result, "message", None):
+                    return result.message
+
+                return (
+                    "The operation completed, "
+                    "but I couldn't generate its explanation."
+                )
+
+            # Normal handled operation — preserve existing flow.
+            return result
 
         # ---------------------------------------------------------
-        # Defensive fallback
+        # CONVERSATIONAL FALLBACK
         # ---------------------------------------------------------
 
         return companion.chat(
-            message
+            message,
+            execution={
+                "handled": getattr(result, "handled", False),
+                "success": getattr(result, "success", False),
+                "message": getattr(result, "message", ""),
+                "data": getattr(result, "data", {}),
+            }
         )
 
 

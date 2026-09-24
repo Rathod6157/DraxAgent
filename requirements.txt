@@ -1,0 +1,17 @@
+# Gemini AI
+google-genai
+python-dotenv
+
+# Desktop UI
+PySide6
+
+# Desktop interaction
+PyAutoGUI
+Pillow
+
+# Terminal interface
+prompt-toolkit
+
+# Windows desktop observation
+psutil
+pywin32

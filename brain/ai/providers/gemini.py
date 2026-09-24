@@ -1,9 +1,9 @@
 import os
 import time
-import threading
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 from ..backend import AIBackend
 from settings import AI_MODEL
@@ -15,7 +15,6 @@ load_dotenv()
 class GeminiBackend(AIBackend):
 
     def __init__(self):
-
         api_key = os.getenv("GEMINI_API_KEY")
 
         if not api_key:
@@ -23,84 +22,50 @@ class GeminiBackend(AIBackend):
                 "Gemini API Key not found."
             )
 
+        # One bounded request.
+        # Avoid stacking SDK retries on top of app retries.
         self.client = genai.Client(
-            api_key=api_key
+            api_key=api_key,
+            http_options=types.HttpOptions(
+                timeout=12_000,
+                retry_options=types.HttpRetryOptions(
+                    attempts=1
+                ),
+            ),
         )
 
         self.model = AI_MODEL
 
-        self.lock = threading.Lock()
+    def reason(self, prompt: str) -> str:
+        started = time.monotonic()
 
-        self.max_retries = 3
+        try:
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    max_output_tokens=768,
+                    temperature=0.4,
+                ),
+            )
 
+            text = (response.text or "").strip()
 
-    def reason(
-        self,
-        prompt: str
-    ) -> str:
+            elapsed = time.monotonic() - started
 
-        with self.lock:
+            print(
+                f"[Gemini] Request completed in {elapsed:.1f}s"
+            )
 
-            delays = [2, 4, 8]
+            return text
 
-            for attempt in range(
-                self.max_retries
-            ):
+        except Exception as error:
+            elapsed = time.monotonic() - started
 
-                try:
+            print(
+                f"[Gemini Error] Request failed after "
+                f"{elapsed:.1f}s: {error}"
+            )
 
-                    response = (
-                        self.client.models.generate_content(
-                            model=self.model,
-                            contents=prompt
-                        )
-                    )
-
-                    if not response.text:
-
-                        return ""
-
-                    return response.text.strip()
-
-
-                except Exception as error:
-
-                    error_text = str(error)
-
-                    retryable = (
-                        "503" in error_text
-                        or "UNAVAILABLE" in error_text
-                        or "429" in error_text
-                        or "RESOURCE_EXHAUSTED" in error_text
-                    )
-
-                    if not retryable:
-
-                        print(
-                            f"[Gemini Error] {error}"
-                        )
-
-                        return ""
-
-
-                    if attempt >= self.max_retries - 1:
-
-                        print(
-                            "[Gemini] Service unavailable "
-                            "after retries."
-                        )
-
-                        return ""
-
-
-                    delay = delays[attempt]
-
-                    print(
-                        f"[Gemini] Temporary failure. "
-                        f"Retrying in {delay}s..."
-                    )
-
-                    time.sleep(delay)
-
-
-        return ""
+            # Empty string signals the caller to use a fallback.
+            return ""

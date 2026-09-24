@@ -498,31 +498,16 @@ def initialize_drax():
 
 def handle_command(text):
 
-    global pending_action
+    response_sent = False
 
     try:
+        from brain.drax import drax
+        from brain.event_bus import bus
 
-        from brain.drax import (
-            drax
-        )
+        # Let Drax's context system know about the message.
+        bus.emit("message", text)
 
-        from brain.event_bus import (
-            bus
-        )
-
-        # ----------------------------------------------------
-        # Tell context engine about the message.
-        # ----------------------------------------------------
-
-        bus.emit(
-            "message",
-            text
-        )
-
-        # ----------------------------------------------------
-        # Thinking
-        # ----------------------------------------------------
-
+        # Start UI thinking state.
         send({
             "type": "typing",
             "value": True
@@ -533,65 +518,75 @@ def handle_command(text):
             "text": "Thinking..."
         })
 
-        # ----------------------------------------------------
-        # Use the REAL Drax public pipeline.
-        # ----------------------------------------------------
+        # Run the public Drax pipeline.
+        response = drax.chat(text)
 
-        response = drax.chat(
-            text
-        )
+        # -----------------------------------------------------
+        # Direct text response
+        # -----------------------------------------------------
 
-        # ----------------------------------------------------
-        # Direct string
-        # ----------------------------------------------------
-
-        if isinstance(
-            response,
-            str
-        ):
-
+        if isinstance(response, str):
             response = response.strip()
 
             if response:
-
                 send({
                     "type": "assistant_message",
                     "text": response
                 })
 
-        # ----------------------------------------------------
-        # Structured result
-        # ----------------------------------------------------
+                response_sent = True
+
+        # -----------------------------------------------------
+        # Structured response
+        # -----------------------------------------------------
 
         elif response is not None:
+            response_sent = forward_result(response)
 
-            if not forward_result(
-                response
-            ):
+        # -----------------------------------------------------
+        # Empty / unsupported response
+        # -----------------------------------------------------
 
-                print(
-                    "[Bridge] Drax returned no direct response.",
-                    file=sys.stderr
+        if not response_sent:
+            print(
+                "[Bridge] Drax returned no usable response.",
+                file=sys.stderr
+            )
+
+            send({
+                "type": "assistant_message",
+                "text": (
+                    "I couldn't complete that response. "
+                    "Please try again in a moment."
                 )
+            })
+
+            response_sent = True
 
     except Exception as error:
+        print(
+            f"[Bridge] Command failed: {error}",
+            file=sys.stderr
+        )
+
+        traceback.print_exc(file=sys.stderr)
 
         send({
             "type": "error",
             "text": str(error)
         })
 
-        traceback.print_exc(
-            file=sys.stderr
-        )
-
     finally:
-
+        # Always stop the thinking animation.
         send({
             "type": "typing",
             "value": False
         })
 
+        # Always release the UI busy state.
+        send({
+            "type": "command_complete"
+        })
 
 # ============================================================
 # MAIN LOOP
