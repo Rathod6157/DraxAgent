@@ -28,8 +28,38 @@
 
   <body>
 
-    <div id="app">
+    <div id="app" class="product-shell">
 
+      <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+        <div class="sidebar-top">
+          <div class="sidebar-brand">
+            <div class="sidebar-logo"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23263f68'/%3E%3Cpath d='M32 10 39 25 54 32 39 39 32 54 25 39 10 32 25 25Z' fill='none' stroke='%239fc4ff' stroke-width='3' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%239fc4ff'/%3E%3C/svg%3E" alt="" /></div>
+            <div class="sidebar-brand-copy"><strong>Drax</strong><span>Desktop AI companion</span></div>
+            <button class="sidebar-collapse-button" id="sidebar-collapse-button" type="button"
+              aria-label="Collapse sidebar" aria-pressed="false" title="Collapse sidebar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2.5"></rect><path d="M9 4v16M14 9l-3 3 3 3"></path></svg>
+            </button>
+            <span class="sidebar-presence" title="Drax is running"></span>
+          </div>
+          <button class="nav-item nav-primary" id="new-chat-button" type="button"><span class="nav-icon">＋</span><span>New conversation</span><kbd>Ctrl K</kbd></button>
+          <div class="sidebar-section-label">WORKSPACE</div>
+          <button class="nav-item is-active" data-view="chat" type="button"><span class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="14.5" rx="3"></rect><path d="m8 19-3.5 2v-4"></path></svg></span><span>Chat</span></button>
+          <button class="nav-item" data-view="projects" type="button"><span class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5h6l2 2h9v9.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"></path><path d="M3.5 7.5v-1a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1"></path></svg></span><span>Projects</span></button>
+          <button class="nav-item" data-view="library" type="button"><span class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5v15M10 4.5v15M15 4.5l4 15"></path></svg></span><span>Library</span></button>
+          <button class="nav-item" data-view="activity" type="button"><span class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2.2-6 4.1 12 2.2-6H21"></path></svg></span><span>Activity</span></button>
+          <div class="sidebar-section-heading"><span>RECENT</span><button id="clear-history-button" type="button" title="Clear local conversation list">•••</button></div>
+          <div class="conversation-list" id="conversation-list" aria-label="Recent conversations"></div>
+        </div>
+        <div class="sidebar-bottom">
+          <button class="nav-item" data-view="settings" type="button"><span class="nav-icon"><svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.55 2.8h4.9l.55 2.05c.58.2 1.12.51 1.6.92l2.08-.5 2.45 4.24-1.53 1.5a6.6 6.6 0 0 1 0 1.98l1.53 1.5-2.45 4.24-2.08-.5c-.48.41-1.02.72-1.6.92l-.55 2.05h-4.9L9 19.15a6.8 6.8 0 0 1-1.6-.92l-2.08.5-2.45-4.24 1.53-1.5a6.6 6.6 0 0 1 0-1.98l-1.53-1.5 2.45-4.24 2.08.5c.48-.41 1.02-.72 1.6-.92z"></path><circle cx="12" cy="12" r="3.15"></circle></svg></span><span>Settings</span></button>
+          <div class="sidebar-profile"><div class="profile-avatar">D</div><div><strong>Drax</strong><span>Local desktop agent</span></div><span class="profile-menu">···</span></div>
+        </div>
+      </aside>
+
+      <div class="workspace" id="workspace">
+      <header class="mobile-topbar"><button id="sidebar-toggle" type="button" aria-label="Toggle navigation">☰</button><strong>Drax</strong><span class="mobile-online"><i></i> Online</span></header>
+      <section class="view-panel" id="section-view" hidden aria-live="polite"></section>
+      <div id="chat-view" class="chat-view">
 
       <!-- =====================================================
            HEADER
@@ -42,7 +72,7 @@
           <div class="brand-logo">
 
             <img
-              src="/src/assets/drax_logo.png"
+              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23263f68'/%3E%3Cpath d='M32 10 39 25 54 32 39 39 32 54 25 39 10 32 25 25Z' fill='none' stroke='%239fc4ff' stroke-width='3' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%239fc4ff'/%3E%3C/svg%3E"
               alt="Drax"
             />
 
@@ -161,26 +191,6 @@
             </div>
 
 
-            <div class="activity-metrics">
-
-              <div class="activity-duration"
-                   id="activity-time">
-                Just now
-              </div>
-
-              <div class="activity-confidence-row">
-                <span>CONFIDENCE</span>
-                <span id="activity-confidence">—</span>
-              </div>
-
-              <div class="activity-confidence-track">
-                <div
-                  class="activity-confidence-fill"
-                  id="activity-confidence-fill"
-                ></div>
-              </div>
-
-            </div>
 
           </div>
 
@@ -215,7 +225,7 @@
                   <div class="message-avatar">
 
                     <img
-                      src="/src/assets/drax_logo.png"
+                      src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23263f68'/%3E%3Cpath d='M32 10 39 25 54 32 39 39 32 54 25 39 10 32 25 25Z' fill='none' stroke='%239fc4ff' stroke-width='3' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%239fc4ff'/%3E%3C/svg%3E"
                       alt=""
                     />
 
@@ -310,6 +320,7 @@
 
       </main>
 
+      </div><!-- /chat-view -->
 
       <!-- =====================================================
            STATUS TOAST
@@ -335,6 +346,8 @@
 
       </div>
 
+      </div><!-- /workspace -->
+      <div class="sidebar-scrim" id="sidebar-scrim"></div>
     </div>
 
   </body>

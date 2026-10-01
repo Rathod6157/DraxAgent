@@ -1,6 +1,8 @@
 import "./styles.css";
 
-import draxLogo from "./assets/drax_logo.png";
+// Inline fallback mark avoids a build-time dependency on an optional logo asset.
+const draxLogo =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23263f68'/%3E%3Cpath d='M32 10 39 25 54 32 39 39 32 54 25 39 10 32 25 25Z' fill='none' stroke='%239fc4ff' stroke-width='3' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%239fc4ff'/%3E%3C/svg%3E";
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -31,6 +33,27 @@ type DraxEvent = {
   visual_context?: unknown;
   observed_at?: number;
 
+  response?: DraxStructuredResponse;
+
+  data?: Record<string, unknown>;
+
+};
+
+
+type DraxAction = {
+  label?: string;
+  command?: string;
+  style?: string;
+};
+
+
+type DraxStructuredResponse = {
+  type?: string;
+  kind?: string;
+  title?: string;
+  icon?: string;
+  data?: Record<string, unknown>;
+  actions?: DraxAction[];
 };
 
 
@@ -62,52 +85,220 @@ const sendButton =
   );
 
 
-const activityTitle =
-  document.querySelector<HTMLDivElement>(
-    "#activity-title"
-  );
-
-
-const activityApplication =
-  document.querySelector<HTMLDivElement>(
-    "#activity-application"
-  );
-
-
-const activityTime =
-  document.querySelector<HTMLDivElement>(
-    "#activity-time"
-  );
-
-
-const activityWindow =
-  document.querySelector<HTMLDivElement>(
-    "#activity-window"
-  );
-
-
-const activityConfidence =
-  document.querySelector<HTMLDivElement>(
-    "#activity-confidence"
-  );
-
-
-const activityConfidenceFill =
-  document.querySelector<HTMLDivElement>(
-    "#activity-confidence-fill"
-  );
-
-
-const activityState =
-  document.querySelector<HTMLSpanElement>(
-    "#activity-state"
-  );
-
-
 const activityCard =
   document.querySelector<HTMLElement>(
     ".activity-card"
   );
+
+
+let activityTitle:
+  HTMLDivElement | null =
+  null;
+
+let activityApplication:
+  HTMLDivElement | null =
+  null;
+
+let activityWindow:
+  HTMLDivElement | null =
+  null;
+
+let activityState:
+  HTMLSpanElement | null =
+  null;
+
+
+/* =========================================================
+   ACTIVITY CARD DOM NORMALIZATION
+   Build ONE canonical layout regardless of what index.html
+   currently contains. This prevents duplicate/stale labels.
+   ========================================================= */
+
+function normalizeActivityCard(): void {
+
+  if (!activityCard) {
+    return;
+  }
+
+  const content =
+    activityCard.querySelector<HTMLDivElement>(
+      ".activity-content"
+    );
+
+  if (!content) {
+    return;
+  }
+
+  /* Remove legacy metrics from older Activity Card layouts.
+     Drax no longer renders elapsed-time/confidence UI here. */
+  activityCard
+    .querySelectorAll(
+      ".activity-metrics, .activity-time, .activity-duration, " +
+      ".activity-confidence, .activity-confidence-row, " +
+      ".activity-confidence-track, .activity-confidence-meter, " +
+      ".activity-confidence-fill, .activity-right"
+    )
+    .forEach((element) => element.remove());
+
+
+  /* -------------------------------------------------------
+     ICON
+     ------------------------------------------------------- */
+
+  let icon =
+    content.querySelector<HTMLDivElement>(
+      ".activity-icon"
+    );
+
+  if (!icon) {
+
+    icon =
+      document.createElement("div");
+
+    icon.className =
+      "activity-icon";
+
+    content.prepend(icon);
+  }
+
+  icon.textContent = "◈";
+  icon.setAttribute("aria-hidden", "true");
+
+
+  /* -------------------------------------------------------
+     DETAILS
+     ------------------------------------------------------- */
+
+  let details =
+    content.querySelector<HTMLDivElement>(
+      ".activity-details"
+    );
+
+  if (!details) {
+
+    details =
+      document.createElement("div");
+
+    details.className =
+      "activity-details";
+
+    content.appendChild(details);
+  }
+
+
+  activityTitle =
+    details.querySelector<HTMLDivElement>(
+      "#activity-title"
+    );
+
+  if (!activityTitle) {
+
+    activityTitle =
+      document.createElement("div");
+
+    activityTitle.id =
+      "activity-title";
+
+    activityTitle.className =
+      "activity-title";
+
+    activityTitle.textContent =
+      "Ready";
+
+    details.prepend(activityTitle);
+  }
+
+
+  activityApplication =
+    details.querySelector<HTMLDivElement>(
+      "#activity-application"
+    );
+
+  if (!activityApplication) {
+
+    activityApplication =
+      document.createElement("div");
+
+    activityApplication.id =
+      "activity-application";
+
+    activityApplication.className =
+      "activity-application";
+
+    activityApplication.textContent =
+      "Waiting for your command";
+
+    details.appendChild(
+      activityApplication
+    );
+  }
+
+
+  /* -------------------------------------------------------
+     STATE
+     ------------------------------------------------------- */
+
+  activityState =
+    details.querySelector<HTMLSpanElement>(
+      "#activity-state"
+    );
+
+  if (!activityState) {
+
+    activityState =
+      document.createElement("span");
+
+    activityState.id =
+      "activity-state";
+
+    activityState.className =
+      "activity-state";
+
+    activityState.textContent =
+      "ANALYZED";
+
+    activityApplication?.insertAdjacentElement(
+      "afterend",
+      activityState
+    );
+  }
+
+
+  /* -------------------------------------------------------
+     WINDOW
+     ------------------------------------------------------- */
+
+  activityWindow =
+    details.querySelector<HTMLDivElement>(
+      "#activity-window"
+    );
+
+  if (!activityWindow) {
+
+    activityWindow =
+      document.createElement("div");
+
+    activityWindow.id =
+      "activity-window";
+
+    activityWindow.className =
+      "activity-window";
+
+    activityWindow.textContent =
+      "Desktop";
+
+    activityState?.insertAdjacentElement(
+      "afterend",
+      activityWindow
+    );
+  }
+
+
+
+}
+
+
+normalizeActivityCard();
 
 
 const statusToast =
@@ -136,16 +327,6 @@ let busy = false;
 
 let statusTimer:
   number | undefined;
-
-let activityStartedAt:
-  number | undefined;
-
-let activityTimer:
-  number | undefined;
-
-let lastActivityApplication =
-  "";
-
 
 /* =========================================================
    ACTIVITY CARD INTERACTION
@@ -416,106 +597,12 @@ function showStatus(
    ACTIVITY
    ========================================================= */
 
-function formatElapsed(
-  startedAt: number,
-): string {
-
-  const startedMilliseconds =
-    startedAt < 10_000_000_000
-      ? startedAt * 1000
-      : startedAt;
-
-  const elapsedSeconds =
-    Math.max(
-      0,
-      Math.floor(
-        (Date.now() - startedMilliseconds) / 1000
-      )
-    );
-
-  if (elapsedSeconds < 5) {
-    return "Just now";
-  }
-
-  if (elapsedSeconds < 60) {
-    return `${elapsedSeconds}s`;
-  }
-
-  const minutes = Math.floor(elapsedSeconds / 60);
-
-  if (minutes < 60) {
-    const seconds = elapsedSeconds % 60;
-    return seconds === 0
-      ? `${minutes}m`
-      : `${minutes}m ${seconds}s`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  return remainingMinutes === 0
-    ? `${hours}h`
-    : `${hours}h ${remainingMinutes}m`;
-}
-
-
-function renderActivityTime(): void {
-
-  if (
-    !activityTime
-    || activityStartedAt === undefined
-  ) {
-    return;
-  }
-
-  activityTime.textContent =
-    formatElapsed(activityStartedAt);
-}
-
-
-function startActivityTimer(): void {
-
-  if (activityTimer !== undefined) {
-    window.clearInterval(activityTimer);
-  }
-
-  activityTimer =
-    window.setInterval(
-      renderActivityTime,
-      1000
-    );
-}
-
-
-function updateConfidence(
-  confidence?: number,
-): void {
-
-  if (!activityConfidence || !activityConfidenceFill) {
-    return;
-  }
-
-  if (
-    confidence === undefined
-    || !Number.isFinite(confidence)
-  ) {
-    activityConfidence.textContent = "—";
-    activityConfidenceFill.style.width = "0%";
-    return;
-  }
-
-  const value = Math.max(0, Math.min(100, Math.round(confidence)));
-
-  activityConfidence.textContent = `${value}%`;
-  activityConfidenceFill.style.width = `${value}%`;
-}
-
-
 function cleanWindowTitle(
   value: string,
 ): string {
 
-  const text = value.trim();
+  const text =
+    value.trim();
 
   if (!text) {
     return "Desktop";
@@ -527,74 +614,63 @@ function cleanWindowTitle(
 }
 
 
+
+
 function updateActivity(
   title: string,
   application: string,
-  startedAt?: number,
   windowTitle?: string,
-  confidence?: number,
   refined = true,
 ): void {
 
   pulseActivityCard();
 
   if (activityTitle) {
-    activityTitle.textContent = title || "Unknown";
+    activityTitle.textContent =
+      title || "Unknown";
   }
 
   if (activityApplication) {
-    activityApplication.textContent = application || "Unknown";
+    activityApplication.textContent =
+      application || "Unknown";
   }
 
   if (activityWindow) {
     activityWindow.textContent =
-      cleanWindowTitle(windowTitle || "");
+      cleanWindowTitle(
+        windowTitle || ""
+      );
   }
 
   if (activityState) {
     activityState.textContent =
-      refined ? "ANALYZED" : "OBSERVING";
+      refined
+        ? "ANALYZED"
+        : "OBSERVING";
 
     activityState.classList.toggle(
       "is-observing",
       !refined
     );
   }
-
-  if (startedAt !== undefined && Number.isFinite(startedAt)) {
-    activityStartedAt = startedAt;
-    renderActivityTime();
-    startActivityTimer();
-  } else if (activityTime) {
-    activityTime.textContent = "Just now";
-  }
-
-  updateConfidence(confidence);
 }
-
 
 function updateActivityContext(
   application: string,
   windowTitle: string,
   observedAt?: number,
 ): void {
+  // Reserved timestamp is accepted from the observer event; current UI uses live arrival time.
+  void observedAt;
 
   const safeApplication =
-    application || "Unknown application";
-
-  lastActivityApplication =
-    safeApplication;
-
-  const startedAt =
-    observedAt
-    ?? Date.now() / 1000;
+    application ||
+    "Unknown application";
 
   updateActivity(
     `Using ${safeApplication}`,
     safeApplication,
-    startedAt,
     windowTitle,
-    undefined,
     false
   );
 }
@@ -603,6 +679,614 @@ function updateActivityContext(
 /* =========================================================
    MESSAGE CREATION
    ========================================================= */
+
+/* =========================================================
+   RICH Drax RESPONSE RENDERING
+   ========================================================= */
+
+function escapeHtml(
+  value: string,
+): string {
+
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
+function renderInlineMarkdown(
+  value: string,
+): string {
+
+  let output =
+    escapeHtml(value);
+
+  output =
+    output.replace(
+      /`([^`]+)`/g,
+      "<code>$1</code>"
+    );
+
+  output =
+    output.replace(
+      /\*\*([^*]+)\*\*/g,
+      "<strong>$1</strong>"
+    );
+
+  output =
+    output.replace(
+      /__([^_]+)__/g,
+      "<strong>$1</strong>"
+    );
+
+  output =
+    output.replace(
+      /(?<!\*)\*([^*]+)\*(?!\*)/g,
+      "<em>$1</em>"
+    );
+
+  return output;
+}
+
+
+function renderRichMessage(
+  text: string,
+): HTMLDivElement {
+
+  const container =
+    document.createElement("div");
+
+  container.className =
+    "message-text rich-message";
+
+  const lines =
+    text
+      .replace(/\r\n/g, "\n")
+      .split("\n");
+
+  let paragraph: string[] = [];
+  let listItems: string[] = [];
+  let inCode = false;
+  let codeLanguage = "";
+  let codeLines: string[] = [];
+
+  const flushParagraph = (): void => {
+
+    if (!paragraph.length) {
+      return;
+    }
+
+    const block =
+      document.createElement("p");
+
+    block.innerHTML =
+      paragraph
+        .map(renderInlineMarkdown)
+        .join("<br>");
+
+    container.appendChild(block);
+
+    paragraph = [];
+  };
+
+
+  const flushList = (): void => {
+
+    if (!listItems.length) {
+      return;
+    }
+
+    const list =
+      document.createElement("ul");
+
+    for (const item of listItems) {
+
+      const li =
+        document.createElement("li");
+
+      li.innerHTML =
+        renderInlineMarkdown(item);
+
+      list.appendChild(li);
+    }
+
+    container.appendChild(list);
+
+    listItems = [];
+  };
+
+
+  const flushCode = (): void => {
+
+    const wrapper =
+      document.createElement("div");
+
+    wrapper.className =
+      "rich-code-block";
+
+
+    if (codeLanguage) {
+
+      const language =
+        document.createElement("div");
+
+      language.className =
+        "rich-code-language";
+
+      language.textContent =
+        codeLanguage;
+
+      wrapper.appendChild(language);
+    }
+
+
+    const pre =
+      document.createElement("pre");
+
+    const code =
+      document.createElement("code");
+
+    code.textContent =
+      codeLines.join("\n");
+
+    pre.appendChild(code);
+    wrapper.appendChild(pre);
+
+    container.appendChild(wrapper);
+
+    codeLines = [];
+    codeLanguage = "";
+  };
+
+
+  for (const line of lines) {
+
+    const fence =
+      line.match(
+        /^```([\w#+.-]*)\s*$/
+      );
+
+    if (fence) {
+
+      if (inCode) {
+
+        flushCode();
+        inCode = false;
+
+      } else {
+
+        flushParagraph();
+        flushList();
+
+        inCode = true;
+        codeLanguage =
+          fence[1] || "";
+      }
+
+      continue;
+    }
+
+
+    if (inCode) {
+      codeLines.push(line);
+      continue;
+    }
+
+
+    if (!line.trim()) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+
+    const heading =
+      line.match(
+        /^#{1,3}\s+(.+)$/
+      );
+
+    if (heading) {
+
+      flushParagraph();
+      flushList();
+
+      const headingElement =
+        document.createElement("h3");
+
+      headingElement.innerHTML =
+        renderInlineMarkdown(
+          heading[1]
+        );
+
+      container.appendChild(
+        headingElement
+      );
+
+      continue;
+    }
+
+
+    const bullet =
+      line.match(
+        /^\s*[-*]\s+(.+)$/
+      );
+
+    if (bullet) {
+
+      flushParagraph();
+
+      listItems.push(
+        bullet[1]
+      );
+
+      continue;
+    }
+
+
+    const numbered =
+      line.match(
+        /^\s*\d+\.\s+(.+)$/
+      );
+
+    if (numbered) {
+
+      flushParagraph();
+
+      listItems.push(
+        numbered[1]
+      );
+
+      continue;
+    }
+
+
+    flushList();
+
+    paragraph.push(line);
+  }
+
+
+  if (inCode) {
+    flushCode();
+  }
+
+  flushParagraph();
+  flushList();
+
+
+  if (!container.childNodes.length) {
+    container.textContent = text;
+  }
+
+
+  return container;
+}
+
+
+function createDraxStructuredCard(
+  response: DraxStructuredResponse,
+): HTMLElement {
+
+  const row =
+    document.createElement("article");
+
+  row.className =
+    "message-row drax-row";
+
+
+  const card =
+    document.createElement("div");
+
+  card.className =
+    "message drax-message drax-structured-card";
+
+
+  const header =
+    document.createElement("div");
+
+  header.className =
+    "drax-card-header";
+
+
+  const icon =
+    document.createElement("span");
+
+  icon.className =
+    "drax-card-icon";
+
+  icon.textContent =
+    response.icon || "◈";
+
+
+  const title =
+    document.createElement("span");
+
+  title.className =
+    "drax-card-title";
+
+  title.textContent =
+    response.title || "Drax";
+
+
+  header.appendChild(icon);
+  header.appendChild(title);
+
+  card.appendChild(header);
+
+
+  const data =
+    response.data || {};
+
+
+  const content =
+    document.createElement("div");
+
+  content.className =
+    "drax-card-content";
+
+
+  const application =
+    String(
+      data.application || ""
+    );
+
+  const activity =
+    String(
+      data.activity || ""
+    );
+
+  const project =
+    String(
+      data.project || ""
+    );
+
+  const resourceName =
+    String(
+      data.resource_name || ""
+    );
+
+  const resourcePath =
+    String(
+      data.resource_path || ""
+    );
+
+  const windowTitle =
+    String(
+      data.window || ""
+    );
+
+  const confidence =
+    Number(
+      data.confidence || 0
+    );
+
+
+  if (application) {
+
+    const app =
+      document.createElement("div");
+
+    app.className =
+      "drax-card-app";
+
+    app.textContent =
+      application;
+
+    content.appendChild(app);
+  }
+
+
+  if (activity) {
+
+    const activityLine =
+      document.createElement("div");
+
+    activityLine.className =
+      "drax-card-meta";
+
+    activityLine.textContent =
+      `● ${activity}`;
+
+    content.appendChild(
+      activityLine
+    );
+  }
+
+
+  if (project) {
+
+    const projectLine =
+      document.createElement("div");
+
+    projectLine.className =
+      "drax-card-project";
+
+    projectLine.textContent =
+      project;
+
+    content.appendChild(
+      projectLine
+    );
+  }
+
+
+  if (resourceName) {
+
+    const file =
+      document.createElement("div");
+
+    file.className =
+      "drax-file-card";
+
+
+    const name =
+      document.createElement("div");
+
+    name.className =
+      "drax-file-name";
+
+    name.textContent =
+      resourceName;
+
+
+    const path =
+      document.createElement("div");
+
+    path.className =
+      "drax-file-path";
+
+    path.textContent =
+      resourcePath ||
+      "Path not resolved";
+
+
+    file.appendChild(name);
+    file.appendChild(path);
+
+    content.appendChild(file);
+
+  } else {
+
+    const noFile =
+      document.createElement("div");
+
+    noFile.className =
+      "drax-no-file";
+
+    noFile.textContent =
+      "No local file detected. "
+      + "Your work context can still be an "
+      + "application, activity, or window.";
+
+    content.appendChild(noFile);
+  }
+
+
+  if (windowTitle) {
+
+    const windowLine =
+      document.createElement("div");
+
+    windowLine.className =
+      "drax-window-label";
+
+    windowLine.textContent =
+      `Window: ${windowTitle}`;
+
+    content.appendChild(
+      windowLine
+    );
+  }
+
+
+  if (
+    Number.isFinite(confidence)
+    && confidence > 0
+  ) {
+
+    const confidenceLine =
+      document.createElement("div");
+
+    confidenceLine.className =
+      "drax-confidence";
+
+    confidenceLine.textContent =
+      `${Math.round(confidence)}% context confidence`;
+
+    content.appendChild(
+      confidenceLine
+    );
+  }
+
+
+  card.appendChild(content);
+
+
+  const actions =
+    response.actions || [];
+
+  if (actions.length) {
+
+    const actionBar =
+      document.createElement("div");
+
+    actionBar.className =
+      "drax-card-actions";
+
+
+    for (const action of actions) {
+
+      if (!action.command) {
+        continue;
+      }
+
+      const button =
+        document.createElement("button");
+
+      button.type =
+        "button";
+
+      button.className =
+        action.style === "primary"
+          ? "drax-action primary"
+          : "drax-action";
+
+      button.textContent =
+        action.label || "Run";
+
+
+      button.addEventListener(
+        "click",
+        () => {
+
+          void sendCommand(
+            action.command || ""
+          );
+
+        }
+      );
+
+
+      actionBar.appendChild(
+        button
+      );
+    }
+
+
+    card.appendChild(
+      actionBar
+    );
+  }
+
+
+  row.appendChild(card);
+
+  return row;
+}
+
+
+function addStructuredResponse(
+  response: DraxStructuredResponse,
+): void {
+
+  if (!conversation) {
+    return;
+  }
+
+  removeThinking();
+
+  conversation.appendChild(
+    createDraxStructuredCard(
+      response
+    )
+  );
+
+  scrollToBottom();
+}
+
 
 function createMessage(
   sender: Sender,
@@ -730,18 +1414,24 @@ function createMessage(
      TEXT
      ------------------------------------------------------- */
 
-  const messageText =
-    document.createElement(
-      "div"
-    );
+  let messageText: HTMLElement;
 
+  if (sender === "drax") {
 
-  messageText.className =
-    "message-text";
+    messageText =
+      renderRichMessage(text);
 
+  } else {
 
-  messageText.textContent =
-    text;
+    messageText =
+      document.createElement("div");
+
+    messageText.className =
+      "message-text";
+
+    messageText.textContent =
+      text;
+  }
 
 
   /* -------------------------------------------------------
@@ -1311,9 +2001,7 @@ void listen<DraxEvent>(
         updateActivity(
           message.activity ?? "Unknown",
           message.application ?? "Unknown application",
-          message.started_at,
           message.window ?? "",
-          message.confidence,
           true
         );
 
@@ -1493,6 +2181,41 @@ void listen<DraxEvent>(
 
 
       /* ---------------------------------------------------
+         STRUCTURED Drax RESPONSE
+         --------------------------------------------------- */
+
+      case "drax_response":
+
+        removeThinking();
+
+        if (
+          message.response
+          && typeof message.response === "object"
+        ) {
+
+          addStructuredResponse(
+            message.response
+          );
+
+        } else if (message.text) {
+
+          addMessage(
+            "drax",
+            message.text
+          );
+        }
+
+        showStatus(
+          "Response ready",
+          900
+        );
+
+        finishCommand();
+
+        break;
+
+
+      /* ---------------------------------------------------
          DIRECT ASSISTANT MESSAGE
          --------------------------------------------------- */
 
@@ -1557,15 +2280,6 @@ void listen<DraxEvent>(
 
         break;
 
-      /* ---------------------------------------------------
-         COMMAND DONE
-         --------------------------------------------------- */
-      
-      case "command_done": {
-        finishCommand();
-        break;
-      }
-
 
       /* ---------------------------------------------------
          ERROR
@@ -1626,8 +2340,6 @@ void listen<DraxEvent>(
    STARTUP
    ========================================================= */
 
-startActivityTimer();
-
 if (input) {
 
   input.focus();
@@ -1637,3 +2349,155 @@ if (input) {
 console.log(
   "Drax UI initialized."
 );
+
+/* =========================================================
+   DRAX PRODUCT SHELL — local navigation and session list
+   This layer does not change the Python/Tauri command contract.
+   ========================================================= */
+type LocalConversation = { id: string; title: string; updatedAt: number };
+const SHELL_HISTORY_KEY = "drax.shell.conversations.v1";
+const shellRoot = document.querySelector<HTMLElement>("#app");
+const sectionView = document.querySelector<HTMLElement>("#section-view");
+const chatView = document.querySelector<HTMLElement>("#chat-view");
+const conversationList = document.querySelector<HTMLElement>("#conversation-list");
+let activeConversationId = "session-default";
+let shellHistory: LocalConversation[] = loadShellHistory();
+
+function loadShellHistory(): LocalConversation[] {
+  try {
+    const raw = localStorage.getItem(SHELL_HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((item) =>
+      item && typeof item.id === "string" && typeof item.title === "string"
+    ) : [];
+  } catch { return []; }
+}
+function saveShellHistory(): void {
+  try { localStorage.setItem(SHELL_HISTORY_KEY, JSON.stringify(shellHistory.slice(0, 30))); }
+  catch { /* Storage is optional; chat remains usable without it. */ }
+}
+function renderShellHistory(): void {
+  if (!conversationList) return;
+  conversationList.replaceChildren();
+  if (!shellHistory.length) {
+    const empty = document.createElement("div");
+    empty.className = "conversation-item";
+    empty.textContent = "No saved conversations yet";
+    empty.style.opacity = ".55";
+    empty.style.cursor = "default";
+    conversationList.append(empty);
+    return;
+  }
+  for (const item of shellHistory) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `conversation-item${item.id === activeConversationId ? " is-current" : ""}`;
+    button.innerHTML = '<span class="conversation-glyph" aria-hidden="true">◌</span>';
+    const title = document.createElement("span");
+    title.className = "conversation-name";
+    title.textContent = item.title;
+    button.append(title);
+    button.title = item.title;
+    button.addEventListener("click", () => {
+      // The MVP stores session labels locally; transcript restoration is a later persistence milestone.
+      activeConversationId = item.id;
+      renderShellHistory();
+      showShellView("chat");
+      showStatus("Conversation history restoration is planned for a future update.", 2200);
+    });
+    conversationList.append(button);
+  }
+}
+function showShellView(view: string): void {
+  document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.view === view);
+  });
+  const isChat = view === "chat";
+  if (chatView) chatView.hidden = !isChat;
+  if (sectionView) {
+    sectionView.hidden = isChat;
+    if (!isChat) sectionView.innerHTML = getSectionMarkup(view);
+  }
+  shellRoot?.classList.remove("sidebar-open");
+}
+function getSectionMarkup(view: string): string {
+  const pages: Record<string, { eyebrow: string; title: string; description: string; cards: Array<[string,string,string]>; note?: string }> = {
+    projects: {
+      eyebrow:"WORKSPACE", title:"Projects", description:"Keep related work, conversations, and context organized. Project linking is planned for the next MVP increment.",
+      cards:[["▱","DraxAgent","The active product workspace. Connect a local folder when project management is wired into the agent."],["＋","Create a project","A dedicated project creation flow will arrive with persistent project storage."]]
+    },
+    library: {
+      eyebrow:"YOUR KNOWLEDGE", title:"Library", description:"A home for files and useful references you choose to keep close to Drax.",
+      cards:[["▥","Saved resources","Saved files and references will appear here once the library index is connected."],["⌕","Search your library","Search will use explicit indexed sources, not pretend to search files that have not been indexed."]]
+    },
+    activity: {
+      eyebrow:"DESKTOP CONTEXT", title:"Activity", description:"See what Drax currently knows about the desktop. Screen observation and retention controls will be explicit and privacy-first.",
+      cards:[["◉","Live desktop activity","The live activity card remains available in Chat. Detailed event history will be connected here."],["◈","Screen context","On-demand vision remains separate from continuous observation until privacy controls are implemented."]]
+    },
+    settings: {
+      eyebrow:"PREFERENCES", title:"Settings", description:"Drax should make its behavior understandable and controllable. These controls are informational until connected to the backend.",
+      cards:[]
+    }
+  };
+  const page = pages[view] ?? pages.projects;
+  const cards = page.cards.map(([icon,title,body]) => `<article class="section-card"><div class="section-card-icon" aria-hidden="true">${icon}</div><h3>${title}</h3><p>${body}</p></article>`).join("");
+  const settings = view === "settings" ? `
+    <div class="settings-row"><div><strong>Desktop activity</strong><small>Current activity card uses the existing observer integration.</small></div><span class="settings-status">Connected</span></div>
+    <div class="settings-row"><div><strong>Screen observation</strong><small>Continuous screen capture is not enabled by this shell.</small></div><span class="settings-status">Not enabled</span></div>
+    <div class="settings-row"><div><strong>Local conversation labels</strong><small>Store recent conversation names in this browser profile.</small></div><span class="settings-status">Local only</span></div>
+    <div class="settings-row"><div><strong>Privacy controls</strong><small>Per-app and per-website exclusions are planned before background vision.</small></div><span class="settings-status">Planned</span></div>` : "";
+  return `<div class="section-eyebrow">${page.eyebrow}</div><h1 class="section-title">${page.title}</h1><p class="section-description">${page.description}</p>${view === "settings" ? settings : `<div class="section-grid">${cards}</div>`}<div class="section-note">MVP transparency: this screen is a product-shell foundation. Features are not presented as connected until their backend behavior exists.</div>`;
+}
+function startNewShellConversation(): void {
+  activeConversationId = `session-${Date.now()}`;
+  const item: LocalConversation = { id: activeConversationId, title: "New conversation", updatedAt: Date.now() };
+  shellHistory = [item, ...shellHistory.filter((entry) => entry.id !== item.id)].slice(0, 30);
+  saveShellHistory();
+  renderShellHistory();
+  if (conversation) {
+    conversation.replaceChildren();
+    const article = document.createElement("article");
+    article.className = "message-row drax-row";
+    article.innerHTML = '<div class="message drax-message welcome-message"><div class="message-header"><div class="message-avatar"><img src="/src/assets/drax_logo.png" alt="" /></div><span class="message-sender">Drax</span><span class="message-time">Now</span></div><div class="message-text">New conversation. What are we working on?</div></div>';
+    conversation.append(article);
+  }
+  showShellView("chat");
+  input?.focus();
+}
+document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => {
+  button.addEventListener("click", () => showShellView(button.dataset.view ?? "chat"));
+});
+document.querySelector("#new-chat-button")?.addEventListener("click", startNewShellConversation);
+document.querySelector("#sidebar-toggle")?.addEventListener("click", () => shellRoot?.classList.toggle("sidebar-open"));
+const sidebarCollapseButton = document.querySelector<HTMLButtonElement>("#sidebar-collapse-button");
+function setSidebarCollapsed(collapsed: boolean): void {
+  shellRoot?.classList.toggle("sidebar-collapsed", collapsed);
+  sidebarCollapseButton?.setAttribute("aria-pressed", String(collapsed));
+  sidebarCollapseButton?.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+  sidebarCollapseButton?.setAttribute("title", collapsed ? "Expand sidebar" : "Collapse sidebar");
+  try { sessionStorage.setItem("drax-sidebar-collapsed", String(collapsed)); } catch { /* storage may be unavailable */ }
+}
+try { setSidebarCollapsed(sessionStorage.getItem("drax-sidebar-collapsed") === "true"); } catch { setSidebarCollapsed(false); }
+sidebarCollapseButton?.addEventListener("click", () => {
+  setSidebarCollapsed(!shellRoot?.classList.contains("sidebar-collapsed"));
+});
+document.querySelector("#sidebar-scrim")?.addEventListener("click", () => shellRoot?.classList.remove("sidebar-open"));
+document.querySelector("#clear-history-button")?.addEventListener("click", () => {
+  shellHistory = [];
+  activeConversationId = "session-default";
+  saveShellHistory();
+  renderShellHistory();
+  showStatus("Recent conversation labels cleared.", 1800);
+});
+document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    startNewShellConversation();
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+    event.preventDefault();
+    setSidebarCollapsed(!shellRoot?.classList.contains("sidebar-collapsed"));
+  }
+});
+renderShellHistory();
+showShellView("chat");
